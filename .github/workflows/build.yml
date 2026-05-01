@@ -1,4 +1,4 @@
-name: HardPlayer Production Build (v1.0.5)
+name: HardPlayer Multi-Distro Build (v1.0.6)
 
 on:
   push:
@@ -10,16 +10,16 @@ permissions:
 
 jobs:
   build:
-    name: Build for ${{ matrix.os }}
+    name: Build & Package
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: windows-latest
-            arch: x64
+            name: windows
           - os: ubuntu-latest
-            arch: x86_64
+            name: linux
 
     steps:
       - name: Checkout Code
@@ -29,27 +29,49 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-          architecture: x64
 
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install PyQt6 yt-dlp nuitka zstandard ordered-set
 
+      # إعداد أدوات التغليف (FPM) على اللينكس فقط
+      - name: Install Packaging Tools (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ruby ruby-dev rubygems build-essential rpm
+          sudo gem install --no-document fpm
+
       - name: Build with Nuitka (Linux)
         if: runner.os == 'Linux'
         run: |
-          # إضافة --include-qt-plugins=all هي السر في حل مشكلة الشاشة السوداء
           python -m nuitka --standalone --remove-output --include-qt-plugins=all hardplayer.py
-          # ضغط المجلد الناتج لضمان نقل كل المكتبات
-          tar -czf hardplayer-linux-x64.tar.gz hardplayer.dist/
+          # نقل الملف التنفيذي لمجلد سهل التعامل معه
+          mkdir -p package_root/usr/bin
+          cp -r hardplayer.dist/* package_root/usr/bin/
+          mv package_root/usr/bin/hardplayer package_root/usr/bin/hardplayer-bin
+          
+          # إنشاء ملف تشغيل بسيط (Wrapper) ليجد المكتبات بجانبه
+          echo -e '#!/bin/bash\n/usr/bin/hardplayer-bin "$@"' > package_root/usr/bin/hardplayer
+          chmod +x package_root/usr/bin/hardplayer
+
+      - name: Create Linux Packages (DEB, RPM, Arch)
+        if: runner.os == 'Linux'
+        run: |
+          # 1. Debian/Ubuntu (.deb)
+          fpm -s dir -t deb -n hardplayer -v 1.0.6 -C package_root .
+          
+          # 2. Fedora (.rpm)
+          fpm -s dir -t rpm -n hardplayer -v 1.0.6 -C package_root .
+          
+          # 3. Arch Linux (.pkg.tar.zst)
+          fpm -s dir -t pacman -n hardplayer -v 1.0.6 -C package_root .
 
       - name: Build with Nuitka (Windows)
         if: runner.os == 'Windows'
         run: |
-          # بناء نسخة ويندوز مستقلة مع كل التعريفات
           python -m nuitka --standalone --remove-output --windows-disable-console --assume-yes-for-downloads --include-qt-plugins=all hardplayer.py
-          # ضغط المجلد في ملف Zip
           Compress-Archive -Path hardplayer.dist -DestinationPath hardplayer-windows-x64.zip
 
       - name: Release Assets
@@ -57,7 +79,9 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
-            *.tar.gz
+            *.deb
+            *.rpm
+            *.zst
             *.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
