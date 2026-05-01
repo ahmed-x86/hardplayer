@@ -1,4 +1,4 @@
-name: HardPlayer Production Build (v1.1.3)
+name: HardPlayer Production Build (v1.1.5)
 
 on:
   push:
@@ -45,21 +45,15 @@ jobs:
       - name: Build with Nuitka (Linux)
         if: runner.os == 'Linux'
         run: |
-          # 1. Force Nuitka to include ALL Qt plugins, especially multimedia
           python -m nuitka --standalone --remove-output --enable-plugin=pyqt6 --include-qt-plugins=all --assume-yes-for-downloads hardplayer.py
           
-          # 2. Setup standard Linux filesystem directories
           mkdir -p package_root/opt/hardplayer
           mkdir -p package_root/usr/bin
           
-          # 3. Copy everything to /opt/hardplayer/
           cp -r hardplayer.dist/* package_root/opt/hardplayer/
           
-          # 4. Rename the main executable to hardplayer-bin to avoid conflicts
           mv package_root/opt/hardplayer/hardplayer.bin package_root/opt/hardplayer/hardplayer-bin
           
-          # 5. Create a rock-solid wrapper script in /usr/bin
-          # This script ensures the program finds its multimedia plugins and libraries
           echo '#!/bin/bash' > package_root/usr/bin/hardplayer
           echo 'export LD_LIBRARY_PATH=/opt/hardplayer:$LD_LIBRARY_PATH' >> package_root/usr/bin/hardplayer
           echo 'export QT_PLUGIN_PATH=/opt/hardplayer/PyQt6/Qt6/plugins' >> package_root/usr/bin/hardplayer
@@ -69,14 +63,14 @@ jobs:
       - name: Create Linux Packages (DEB, RPM, Arch)
         if: runner.os == 'Linux'
         run: |
-          fpm -s dir -t deb -n hardplayer -v 1.1.3 -d ffmpeg -C package_root .
-          fpm -s dir -t rpm -n hardplayer -v 1.1.3 -d ffmpeg -C package_root .
-          fpm -s dir -t pacman -n hardplayer -v 1.1.3 -d ffmpeg -C package_root .
+          fpm -s dir -t deb -n hardplayer -v 1.1.5 -d ffmpeg -C package_root .
+          fpm -s dir -t rpm -n hardplayer -v 1.1.5 -d ffmpeg -C package_root .
+          fpm -s dir -t pacman -n hardplayer -v 1.1.5 -d ffmpeg -C package_root .
 
       - name: Build with Nuitka (Windows)
         if: runner.os == 'Windows'
         run: |
-          # Build standalone for Windows WITHOUT --windows-disable-console to allow terminal logs
+          # Removed --windows-disable-console to keep the terminal visible for debugging and power users
           python -m nuitka --standalone --remove-output --enable-plugin=pyqt6 --include-qt-plugins=all --assume-yes-for-downloads hardplayer.py
           Compress-Archive -Path hardplayer.dist -DestinationPath hardplayer-windows-x64.zip
 
