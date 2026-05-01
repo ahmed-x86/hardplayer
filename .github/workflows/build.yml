@@ -1,4 +1,4 @@
-name: HardPlayer Production Build (v1.1.1)
+name: HardPlayer Production Build (v1.1.2)
 
 on:
   push:
@@ -45,33 +45,39 @@ jobs:
       - name: Build with Nuitka (Linux)
         if: runner.os == 'Linux'
         run: |
-          # Build as standalone to ensure ABI compatibility across distros
-          python -m nuitka --standalone --remove-output --enable-plugin=pyqt6 --assume-yes-for-downloads hardplayer.py
+          # 1. Force Nuitka to include ALL Qt plugins, especially multimedia
+          python -m nuitka --standalone --remove-output --enable-plugin=pyqt6 --include-qt-plugins=all --assume-yes-for-downloads hardplayer.py
           
-          # Create standard Linux filesystem structure (/opt and /usr/bin)
+          # 2. Setup standard Linux filesystem directories
           mkdir -p package_root/opt/hardplayer
           mkdir -p package_root/usr/bin
           
-          # Move all standalone files to /opt/hardplayer/
+          # 3. Copy everything to /opt/hardplayer/
           cp -r hardplayer.dist/* package_root/opt/hardplayer/
           
-          # Create a symlink in /usr/bin pointing to the /opt binary
-          # Note: Nuitka generates a wrapper script and a .bin file. We link the wrapper.
-          ln -s /opt/hardplayer/hardplayer package_root/usr/bin/hardplayer
+          # 4. Rename the main executable to hardplayer-bin to avoid conflicts
+          mv package_root/opt/hardplayer/hardplayer.bin package_root/opt/hardplayer/hardplayer-bin
+          
+          # 5. Create a rock-solid wrapper script in /usr/bin
+          # This script ensures the program finds its multimedia plugins and libraries
+          echo '#!/bin/bash' > package_root/usr/bin/hardplayer
+          echo 'export LD_LIBRARY_PATH=/opt/hardplayer:$LD_LIBRARY_PATH' >> package_root/usr/bin/hardplayer
+          echo 'export QT_PLUGIN_PATH=/opt/hardplayer/PyQt6/Qt6/plugins' >> package_root/usr/bin/hardplayer
+          echo 'exec /opt/hardplayer/hardplayer-bin "$@"' >> package_root/usr/bin/hardplayer
+          chmod +x package_root/usr/bin/hardplayer
 
       - name: Create Linux Packages (DEB, RPM, Arch)
         if: runner.os == 'Linux'
         run: |
-          # -d ffmpeg tells apt/pacman/dnf to download FFmpeg automatically
-          fpm -s dir -t deb -n hardplayer -v 1.1.1 -d ffmpeg -C package_root .
-          fpm -s dir -t rpm -n hardplayer -v 1.1.1 -d ffmpeg -C package_root .
-          fpm -s dir -t pacman -n hardplayer -v 1.1.1 -d ffmpeg -C package_root .
+          fpm -s dir -t deb -n hardplayer -v 1.1.2 -d ffmpeg -C package_root .
+          fpm -s dir -t rpm -n hardplayer -v 1.1.2 -d ffmpeg -C package_root .
+          fpm -s dir -t pacman -n hardplayer -v 1.1.2 -d ffmpeg -C package_root .
 
       - name: Build with Nuitka (Windows)
         if: runner.os == 'Windows'
         run: |
-          # Build standalone for Windows. Assumes FFmpeg is in system PATH.
-          python -m nuitka --standalone --remove-output --windows-disable-console --assume-yes-for-downloads --enable-plugin=pyqt6 hardplayer.py
+          # Force all plugins for Windows too to avoid the same multimedia error
+          python -m nuitka --standalone --remove-output --windows-disable-console --enable-plugin=pyqt6 --include-qt-plugins=all --assume-yes-for-downloads hardplayer.py
           Compress-Archive -Path hardplayer.dist -DestinationPath hardplayer-windows-x64.zip
 
       - name: Release Assets
