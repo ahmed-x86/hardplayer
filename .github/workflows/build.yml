@@ -1,4 +1,4 @@
-name: HardPlayer Production Build (v1.1.6)
+name: HardPlayer Production Build (v1.1.7)
 
 on:
   push:
@@ -63,9 +63,9 @@ jobs:
       - name: Create Linux Packages (DEB, RPM, Arch)
         if: runner.os == 'Linux'
         run: |
-          fpm -s dir -t deb -n hardplayer -v 1.1.6 -d ffmpeg -C package_root .
-          fpm -s dir -t rpm -n hardplayer -v 1.1.6 -d ffmpeg -C package_root .
-          fpm -s dir -t pacman -n hardplayer -v 1.1.6 -d ffmpeg -C package_root .
+          fpm -s dir -t deb -n hardplayer -v 1.1.7 -d ffmpeg -C package_root .
+          fpm -s dir -t rpm -n hardplayer -v 1.1.7 -d ffmpeg -C package_root .
+          fpm -s dir -t pacman -n hardplayer -v 1.1.7 -d ffmpeg -C package_root .
 
       - name: Build with Nuitka (Windows)
         if: runner.os == 'Windows'
@@ -73,13 +73,14 @@ jobs:
           # 1. Build standalone
           python -m nuitka --standalone --remove-output --enable-plugin=pyqt6 --include-qt-plugins=all --assume-yes-for-downloads hardplayer.py
           
-          # 2. Brute-force copy all missing PyQt6 DLLs (like Qt6FFmpeg.dll) to the dist folder
-          $QtBinDir = python -c "import PyQt6, os; print(os.path.join(os.path.dirname(PyQt6.__file__), 'Qt6', 'bin'))"
-          if (Test-Path $QtBinDir) {
-              Copy-Item -Path "$QtBinDir\*.dll" -Destination "hardplayer.dist\" -Force
-          }
+          # 2. Download FFmpeg SHARED build (This contains the .dll files required by Qt's ffmpeg plugin)
+          Invoke-WebRequest -Uri "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl-shared.zip" -OutFile "ffmpeg-shared.zip"
+          Expand-Archive ffmpeg-shared.zip -DestinationPath temp_ffmpeg_shared
           
-          # 3. Compress
+          # 3. Copy all FFmpeg DLLs directly next to the executable
+          Copy-Item temp_ffmpeg_shared\*\bin\*.dll -Destination hardplayer.dist\ -Force
+          
+          # 4. Compress
           Compress-Archive -Path hardplayer.dist -DestinationPath hardplayer-windows-x64.zip
 
       - name: Release Assets
