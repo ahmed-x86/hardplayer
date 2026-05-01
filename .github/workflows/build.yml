@@ -3,7 +3,10 @@ name: HardPlayer Multi-Arch Build
 on:
   push:
     tags:
-      - 'v*' # سيعمل البناء عند إضافة Tag يبدأ بحرف v مثل v1.0.1
+      - 'v*'
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -47,8 +50,7 @@ jobs:
       - name: Build with Nuitka (Windows)
         if: runner.os == 'Windows'
         run: |
-          # لاحظ هنا استخدمنا --standalone للويندوز لضمان عمله عند المستخدمين
-          python -m nuitka --standalone --remove-output --windows-disable-console hardplayer.py
+          python -m nuitka --standalone --remove-output --windows-disable-console --assume-yes-for-downloads hardplayer.py
           move hardplayer.exe hardplayer-windows-${{ matrix.arch }}.exe
 
       - name: Release
@@ -58,3 +60,5 @@ jobs:
           files: |
             hardplayer-linux-*
             hardplayer-windows-*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
