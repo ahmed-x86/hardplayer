@@ -1,0 +1,1 @@
+sudo pacman -S pyqt6-multimedia qt6-multimedia-ffmpeg

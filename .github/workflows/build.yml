@@ -1,4 +1,4 @@
-name: HardPlayer Global Build (v1.0.4)
+name: HardPlayer Production Build (v1.0.5)
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    name: Build for ${{ matrix.os }} (${{ matrix.arch }})
+    name: Build for ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -18,13 +18,8 @@ jobs:
         include:
           - os: windows-latest
             arch: x64
-            python-arch: x64
-          - os: windows-latest
-            arch: x86
-            python-arch: x86
           - os: ubuntu-latest
             arch: x86_64
-            python-arch: x64
 
     steps:
       - name: Checkout Code
@@ -34,34 +29,35 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-          architecture: ${{ matrix.python-arch }}
+          architecture: x64
 
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          # إضافة zstandard لضغط الملف ليكون أصغر وأسرع
           pip install PyQt6 yt-dlp nuitka zstandard ordered-set
 
-      - name: Build with Nuitka (Linux - Universal)
+      - name: Build with Nuitka (Linux)
         if: runner.os == 'Linux'
         run: |
-          # استخدمنا --onefile ليعمل على Arch و Fedora بدون مشاكل المكتبات
-          python -m nuitka --standalone --onefile --remove-output hardplayer.py
-          mv hardplayer.bin hardplayer-linux-universal-x86_64
+          # إضافة --include-qt-plugins=all هي السر في حل مشكلة الشاشة السوداء
+          python -m nuitka --standalone --remove-output --include-qt-plugins=all hardplayer.py
+          # ضغط المجلد الناتج لضمان نقل كل المكتبات
+          tar -czf hardplayer-linux-x64.tar.gz hardplayer.dist/
 
       - name: Build with Nuitka (Windows)
         if: runner.os == 'Windows'
         run: |
-          # إضافة assume-yes لضمان نجاح التحميل التلقائي في ويندوز
-          python -m nuitka --standalone --onefile --remove-output --windows-disable-console --assume-yes-for-downloads hardplayer.py
-          move hardplayer.exe hardplayer-windows-${{ matrix.arch }}.exe
+          # بناء نسخة ويندوز مستقلة مع كل التعريفات
+          python -m nuitka --standalone --remove-output --windows-disable-console --assume-yes-for-downloads --include-qt-plugins=all hardplayer.py
+          # ضغط المجلد في ملف Zip
+          Compress-Archive -Path hardplayer.dist -DestinationPath hardplayer-windows-x64.zip
 
       - name: Release Assets
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
-            hardplayer-linux-universal-x86_64
-            hardplayer-windows-*.exe
+            *.tar.gz
+            *.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
