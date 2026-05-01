@@ -1,4 +1,4 @@
-name: HardPlayer Multi-Arch Build
+name: HardPlayer Global Build (v1.0.4)
 
 on:
   push:
@@ -38,27 +38,30 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          pip install --upgrade pip
-          pip install PyQt6 yt-dlp nuitka
+          python -m pip install --upgrade pip
+          # إضافة zstandard لضغط الملف ليكون أصغر وأسرع
+          pip install PyQt6 yt-dlp nuitka zstandard ordered-set
 
-      - name: Build with Nuitka (Linux)
+      - name: Build with Nuitka (Linux - Universal)
         if: runner.os == 'Linux'
         run: |
-          python -m nuitka --remove-output hardplayer.py
-          mv hardplayer.bin hardplayer-linux-${{ matrix.arch }}
+          # استخدمنا --onefile ليعمل على Arch و Fedora بدون مشاكل المكتبات
+          python -m nuitka --standalone --onefile --remove-output hardplayer.py
+          mv hardplayer.bin hardplayer-linux-universal-x86_64
 
       - name: Build with Nuitka (Windows)
         if: runner.os == 'Windows'
         run: |
-          python -m nuitka --standalone --remove-output --windows-disable-console --assume-yes-for-downloads hardplayer.py
+          # إضافة assume-yes لضمان نجاح التحميل التلقائي في ويندوز
+          python -m nuitka --standalone --onefile --remove-output --windows-disable-console --assume-yes-for-downloads hardplayer.py
           move hardplayer.exe hardplayer-windows-${{ matrix.arch }}.exe
 
-      - name: Release
+      - name: Release Assets
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
-            hardplayer-linux-*
+            hardplayer-linux-universal-x86_64
             hardplayer-windows-*.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
