@@ -1,4 +1,4 @@
-name: HardPlayer Production Build (v1.1.5)
+name: HardPlayer Production Build (v1.1.6)
 
 on:
   push:
@@ -63,15 +63,23 @@ jobs:
       - name: Create Linux Packages (DEB, RPM, Arch)
         if: runner.os == 'Linux'
         run: |
-          fpm -s dir -t deb -n hardplayer -v 1.1.5 -d ffmpeg -C package_root .
-          fpm -s dir -t rpm -n hardplayer -v 1.1.5 -d ffmpeg -C package_root .
-          fpm -s dir -t pacman -n hardplayer -v 1.1.5 -d ffmpeg -C package_root .
+          fpm -s dir -t deb -n hardplayer -v 1.1.6 -d ffmpeg -C package_root .
+          fpm -s dir -t rpm -n hardplayer -v 1.1.6 -d ffmpeg -C package_root .
+          fpm -s dir -t pacman -n hardplayer -v 1.1.6 -d ffmpeg -C package_root .
 
       - name: Build with Nuitka (Windows)
         if: runner.os == 'Windows'
         run: |
-          # Removed --windows-disable-console to keep the terminal visible for debugging and power users
+          # 1. Build standalone
           python -m nuitka --standalone --remove-output --enable-plugin=pyqt6 --include-qt-plugins=all --assume-yes-for-downloads hardplayer.py
+          
+          # 2. Brute-force copy all missing PyQt6 DLLs (like Qt6FFmpeg.dll) to the dist folder
+          $QtBinDir = python -c "import PyQt6, os; print(os.path.join(os.path.dirname(PyQt6.__file__), 'Qt6', 'bin'))"
+          if (Test-Path $QtBinDir) {
+              Copy-Item -Path "$QtBinDir\*.dll" -Destination "hardplayer.dist\" -Force
+          }
+          
+          # 3. Compress
           Compress-Archive -Path hardplayer.dist -DestinationPath hardplayer-windows-x64.zip
 
       - name: Release Assets

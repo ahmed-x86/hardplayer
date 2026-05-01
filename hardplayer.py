@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 
 import os
-# Force PyQt6 to use ffmpeg backend
+# Force PyQt6 to use ffmpeg backend instead of the broken Windows Media Foundation
 os.environ["QT_MEDIA_BACKEND"] = "ffmpeg"
-# Force FFmpeg to use software decoding
+# Force FFmpeg to use software decoding to prevent hardware acceleration black screens
 os.environ["FFMPEG_HWACCEL"] = "0"
-# Enable Qt debug logging to trace missing multimedia plugins/DLLs
-os.environ["QT_DEBUG_PLUGINS"] = "1"
 
 import sys
 import subprocess
