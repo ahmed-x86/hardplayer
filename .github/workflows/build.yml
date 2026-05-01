@@ -1,4 +1,4 @@
-name: HardPlayer Production Build (v1.1.0)
+name: HardPlayer Production Build (v1.1.1)
 
 on:
   push:
@@ -45,24 +45,32 @@ jobs:
       - name: Build with Nuitka (Linux)
         if: runner.os == 'Linux'
         run: |
+          # Build as standalone to ensure ABI compatibility across distros
           python -m nuitka --standalone --remove-output --enable-plugin=pyqt6 --assume-yes-for-downloads hardplayer.py
+          
+          # Create standard Linux filesystem structure (/opt and /usr/bin)
+          mkdir -p package_root/opt/hardplayer
           mkdir -p package_root/usr/bin
-          cp -r hardplayer.dist/* package_root/usr/bin/
-          mv package_root/usr/bin/hardplayer.bin package_root/usr/bin/hardplayer-bin
-          echo -e '#!/bin/bash\nLD_LIBRARY_PATH=/usr/bin /usr/bin/hardplayer-bin "$@"' > package_root/usr/bin/hardplayer
-          chmod +x package_root/usr/bin/hardplayer
+          
+          # Move all standalone files to /opt/hardplayer/
+          cp -r hardplayer.dist/* package_root/opt/hardplayer/
+          
+          # Create a symlink in /usr/bin pointing to the /opt binary
+          # Note: Nuitka generates a wrapper script and a .bin file. We link the wrapper.
+          ln -s /opt/hardplayer/hardplayer package_root/usr/bin/hardplayer
 
       - name: Create Linux Packages (DEB, RPM, Arch)
         if: runner.os == 'Linux'
         run: |
-          fpm -s dir -t deb -n hardplayer -v 1.1.0 -d ffmpeg -C package_root .
-          fpm -s dir -t rpm -n hardplayer -v 1.1.0 -d ffmpeg -C package_root .
-          fpm -s dir -t pacman -n hardplayer -v 1.1.0 -d ffmpeg -C package_root .
+          # -d ffmpeg tells apt/pacman/dnf to download FFmpeg automatically
+          fpm -s dir -t deb -n hardplayer -v 1.1.1 -d ffmpeg -C package_root .
+          fpm -s dir -t rpm -n hardplayer -v 1.1.1 -d ffmpeg -C package_root .
+          fpm -s dir -t pacman -n hardplayer -v 1.1.1 -d ffmpeg -C package_root .
 
       - name: Build with Nuitka (Windows)
         if: runner.os == 'Windows'
         run: |
-          # Build standard standalone version without bundling ffmpeg
+          # Build standalone for Windows. Assumes FFmpeg is in system PATH.
           python -m nuitka --standalone --remove-output --windows-disable-console --assume-yes-for-downloads --enable-plugin=pyqt6 hardplayer.py
           Compress-Archive -Path hardplayer.dist -DestinationPath hardplayer-windows-x64.zip
 
