@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 
 import os
-# إجبار FFmpeg على استخدام المعالج لفك التشفير لتجنب مشاكل الهاردوير مع الفيديوهات المحلية
+# Force FFmpeg to use software decoding to prevent hardware acceleration black screens
 os.environ["FFMPEG_HWACCEL"] = "0"
-# تم إزالة أسطر إخفاء الـ logs لكي تظهر في التيرمنال
 
 import sys
 import subprocess
@@ -30,7 +29,7 @@ QLineEdit {{ background-color: {SURFACE0}; color: {TEXT}; border: 1px solid {MAU
 """
 
 # ---------------------------------------------------------
-# الحاوية الذكية اللي هتحل مشكلة الحواف السوداء
+# Aspect Ratio Container to fix black borders
 # ---------------------------------------------------------
 class AspectRatioContainer(QWidget):
     def __init__(self, child_widget, bg_color):
@@ -70,7 +69,7 @@ class StartupDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setSpacing(15)
         
-        self.lbl = QLabel("اختر ملف فيديو محلي أو أدخل رابط يوتيوب:", self)
+        self.lbl = QLabel("Select a local video file or enter a YouTube URL:", self)
         self.lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.lbl)
         
@@ -125,16 +124,16 @@ class HardPlayerWindow(QMainWindow):
         QTimer.singleShot(100, self.show_startup_dialog)
 
     # ---------------------------------------------------------
-    # التقاط ضغطات الكيبورد
+    # Key Press Events
     # ---------------------------------------------------------
     def keyPressEvent(self, event):
-        # التحقق مما إذا كان الزر المضغوط هو حرف P (سواء كان كابيتال أو سمول)
+        # Check if 'P' is pressed
         if event.key() == Qt.Key.Key_P:
-            # التحقق إذا لم يكن هناك فيديو في وضع التشغيل حالياً
+            # Check if video is not playing
             if self.player.playbackState() != QMediaPlayer.PlaybackState.PlayingState:
                 self.show_startup_dialog()
                 
-        # تمرير الحدث للنافذة الأم لضمان عدم تعطل باقي الاختصارات الافتراضية
+        # Pass event to parent
         super().keyPressEvent(event)
 
     def show_startup_dialog(self):
@@ -157,7 +156,7 @@ class HardPlayerWindow(QMainWindow):
                 ["yt-dlp", "-f", "bestvideo[vcodec^=avc1]+bestaudio[ext=m4a]/best[ext=mp4]/best", "-g", yt_url],
                 capture_output=True, text=True, check=True
             )
-            # أخذ الرابط الأول من مخرجات yt-dlp
+            # Extract the first URL from yt-dlp output
             stream_url = result.stdout.strip().split('\n')[0]
             
             if stream_url:
