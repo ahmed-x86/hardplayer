@@ -1,13 +1,24 @@
 #!/usr/bin/env python3
 
 import os
+import sys
+import subprocess
+
+
+if os.name == 'nt':
+    try:
+        
+        os.add_dll_directory(os.getcwd())
+    except AttributeError:
+        pass
+    
+    os.environ["QT_PLUGIN_PATH"] = os.path.join(os.getcwd(), "PyQt6", "Qt6", "plugins")
+
 # Force PyQt6 to use ffmpeg backend instead of the broken Windows Media Foundation
 os.environ["QT_MEDIA_BACKEND"] = "ffmpeg"
 # Force FFmpeg to use software decoding to prevent hardware acceleration black screens
 os.environ["FFMPEG_HWACCEL"] = "0"
 
-import sys
-import subprocess
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, 
                              QWidget, QPushButton, QFileDialog, QDialog, 
                              QHBoxLayout, QLineEdit, QLabel, QStackedWidget)

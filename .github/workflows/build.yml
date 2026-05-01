@@ -1,4 +1,4 @@
-name: HardPlayer Production Build (v1.2.1)
+name: HardPlayer Production Build (v1.2.2)
 
 on:
   push:
@@ -59,10 +59,10 @@ jobs:
       - name: Create Linux Packages
         if: runner.os == 'Linux'
         run: |
-          # تم تحديث الإصدار هنا ليكون 1.2.1 متوافق مع الـ Tag
-          fpm -s dir -t deb -n hardplayer -v 1.2.1 -d ffmpeg -C package_root .
-          fpm -s dir -t rpm -n hardplayer -v 1.2.1 -d ffmpeg -C package_root .
-          fpm -s dir -t pacman -n hardplayer -v 1.2.1 -d ffmpeg -C package_root .
+          # تحديث الإصدار ليكون 1.2.2 ليتطابق مع الـ Release الجديد
+          fpm -s dir -t deb -n hardplayer -v 1.2.2 -d ffmpeg -C package_root .
+          fpm -s dir -t rpm -n hardplayer -v 1.2.2 -d ffmpeg -C package_root .
+          fpm -s dir -t pacman -n hardplayer -v 1.2.2 -d ffmpeg -C package_root .
 
       - name: Build with Nuitka (Windows)
         if: runner.os == 'Windows'
