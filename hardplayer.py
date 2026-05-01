@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
 import os
+# Force PyQt6 to use ffmpeg backend instead of the broken Windows Media Foundation
+os.environ["QT_MEDIA_BACKEND"] = "ffmpeg"
 # Force FFmpeg to use software decoding to prevent hardware acceleration black screens
 os.environ["FFMPEG_HWACCEL"] = "0"
 
@@ -222,3 +224,4 @@ if __name__ == "__main__":
     window = HardPlayerWindow()
     window.show()
     sys.exit(app.exec())
+    
