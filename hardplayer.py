@@ -57,8 +57,54 @@ class AspectRatioContainer(QWidget):
         
         self.child.setGeometry(x, y, target_w, target_h)
         super().resizeEvent(event)
-# ---------------------------------------------------------
 
+# ---------------------------------------------------------
+# FFmpeg Info Dialog (Triggered by 'I' key)
+# ---------------------------------------------------------
+class InfoDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("System FFmpeg Info")
+        self.setFixedSize(500, 200)
+        self.setModal(True)
+        
+        layout = QVBoxLayout(self)
+        layout.setSpacing(10)
+        
+        self.lbl = QLabel("System FFmpeg Version:", self)
+        self.lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl.setFont(QFont("Arial", 12, QFont.Weight.Bold))
+        layout.addWidget(self.lbl)
+        
+        self.info_text = QLabel(self)
+        self.info_text.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        self.info_text.setWordWrap(True)
+        self.info_text.setStyleSheet(f"font-family: monospace; font-size: 12px; color: {TEXT};")
+        layout.addWidget(self.info_text)
+        
+        self.close_btn = QPushButton("Close")
+        self.close_btn.clicked.connect(self.accept)
+        layout.addWidget(self.close_btn)
+        
+        self.get_ffmpeg_info()
+
+    def get_ffmpeg_info(self):
+        try:
+            result = subprocess.run(
+                ["ffmpeg", "-version"],
+                capture_output=True, text=True, check=True
+            )
+            # Display only the first two lines of the ffmpeg output for cleaner look
+            lines = result.stdout.strip().split('\n')[:2]
+            self.info_text.setText("\n".join(lines))
+        except FileNotFoundError:
+            self.info_text.setText("❌ FFmpeg is NOT installed or NOT found in system PATH.")
+        except Exception as e:
+            self.info_text.setText(f"❌ Error executing FFmpeg: {str(e)}")
+
+# ---------------------------------------------------------
+# Startup Media Dialog
+# ---------------------------------------------------------
 class StartupDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -73,7 +119,7 @@ class StartupDialog(QDialog):
         self.lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.lbl)
         
-        self.browse_btn = QPushButton("📁 Browse Local Video", self)
+        self.browse_btn = QPushButton("📁 Browse Local Video")
         self.browse_btn.clicked.connect(self.parent().browse_video)
         self.browse_btn.clicked.connect(self.accept)
         layout.addWidget(self.browse_btn)
@@ -94,6 +140,9 @@ class StartupDialog(QDialog):
             self.parent().play_youtube(url)
             self.accept()
 
+# ---------------------------------------------------------
+# Main Window
+# ---------------------------------------------------------
 class HardPlayerWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -123,21 +172,23 @@ class HardPlayerWindow(QMainWindow):
 
         QTimer.singleShot(100, self.show_startup_dialog)
 
-    # ---------------------------------------------------------
-    # Key Press Events
-    # ---------------------------------------------------------
     def keyPressEvent(self, event):
-        # Check if 'P' is pressed
+        # Key 'P' for opening the media dialog
         if event.key() == Qt.Key.Key_P:
-            # Check if video is not playing
             if self.player.playbackState() != QMediaPlayer.PlaybackState.PlayingState:
                 self.show_startup_dialog()
-                
-        # Pass event to parent
+        # Key 'I' for opening the system info dialog
+        elif event.key() == Qt.Key.Key_I:
+            self.show_info_dialog()
+            
         super().keyPressEvent(event)
 
     def show_startup_dialog(self):
         dialog = StartupDialog(self)
+        dialog.exec()
+
+    def show_info_dialog(self):
+        dialog = InfoDialog(self)
         dialog.exec()
 
     def browse_video(self):
@@ -156,7 +207,6 @@ class HardPlayerWindow(QMainWindow):
                 ["yt-dlp", "-f", "bestvideo[vcodec^=avc1]+bestaudio[ext=m4a]/best[ext=mp4]/best", "-g", yt_url],
                 capture_output=True, text=True, check=True
             )
-            # Extract the first URL from yt-dlp output
             stream_url = result.stdout.strip().split('\n')[0]
             
             if stream_url:

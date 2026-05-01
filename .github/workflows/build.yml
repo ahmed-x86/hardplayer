@@ -1,4 +1,4 @@
-name: HardPlayer Bulletproof Build (v1.0.9)
+name: HardPlayer Production Build (v1.1.0)
 
 on:
   push:
@@ -39,49 +39,31 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          # Added libarchive-tools and zstd to fix the bsdtar exit code 127 error for Arch packages
           sudo apt-get install -y ruby ruby-dev rubygems build-essential rpm libarchive-tools zstd
           sudo gem install --no-document fpm
 
       - name: Build with Nuitka (Linux)
         if: runner.os == 'Linux'
         run: |
-          # Build the main program
           python -m nuitka --standalone --remove-output --enable-plugin=pyqt6 --assume-yes-for-downloads hardplayer.py
-          
-          # Prepare the fake root directory for packaging
           mkdir -p package_root/usr/bin
           cp -r hardplayer.dist/* package_root/usr/bin/
-          
-          # Fix Nuitka adding .bin to the executable on Linux
           mv package_root/usr/bin/hardplayer.bin package_root/usr/bin/hardplayer-bin
-          
-          # Create a wrapper script to set LD_LIBRARY_PATH
           echo -e '#!/bin/bash\nLD_LIBRARY_PATH=/usr/bin /usr/bin/hardplayer-bin "$@"' > package_root/usr/bin/hardplayer
           chmod +x package_root/usr/bin/hardplayer
 
       - name: Create Linux Packages (DEB, RPM, Arch)
         if: runner.os == 'Linux'
         run: |
-          # Add "-d ffmpeg" to ensure ffmpeg is installed as a dependency
-          fpm -s dir -t deb -n hardplayer -v 1.0.9 -d ffmpeg -C package_root .
-          fpm -s dir -t rpm -n hardplayer -v 1.0.9 -d ffmpeg -C package_root .
-          fpm -s dir -t pacman -n hardplayer -v 1.0.9 -d ffmpeg -C package_root .
+          fpm -s dir -t deb -n hardplayer -v 1.1.0 -d ffmpeg -C package_root .
+          fpm -s dir -t rpm -n hardplayer -v 1.1.0 -d ffmpeg -C package_root .
+          fpm -s dir -t pacman -n hardplayer -v 1.1.0 -d ffmpeg -C package_root .
 
-      - name: Build with Nuitka & Bundle FFmpeg (Windows)
+      - name: Build with Nuitka (Windows)
         if: runner.os == 'Windows'
         run: |
-          # 1. Build the program for Windows
+          # Build standard standalone version without bundling ffmpeg
           python -m nuitka --standalone --remove-output --windows-disable-console --assume-yes-for-downloads --enable-plugin=pyqt6 hardplayer.py
-          
-          # 2. Download FFmpeg for Windows to bundle it with the program
-          Invoke-WebRequest -Uri "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip" -OutFile "ffmpeg.zip"
-          Expand-Archive ffmpeg.zip -DestinationPath temp_ffmpeg
-          
-          # 3. Copy FFmpeg executables to the distribution folder
-          Copy-Item temp_ffmpeg\*\bin\*.exe -Destination hardplayer.dist\
-          
-          # 4. Compress the entire folder into a ZIP file
           Compress-Archive -Path hardplayer.dist -DestinationPath hardplayer-windows-x64.zip
 
       - name: Release Assets
