@@ -1,4 +1,4 @@
-name: HardPlayer Multi-Distro Build (v1.0.6)
+name: HardPlayer Multi-Distro Build (v1.0.7)
 
 on:
   push:
@@ -35,7 +35,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install PyQt6 yt-dlp nuitka zstandard ordered-set
 
-      # إعداد أدوات التغليف (FPM) على اللينكس فقط
       - name: Install Packaging Tools (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -46,32 +45,27 @@ jobs:
       - name: Build with Nuitka (Linux)
         if: runner.os == 'Linux'
         run: |
-          python -m nuitka --standalone --remove-output --include-qt-plugins=all hardplayer.py
-          # نقل الملف التنفيذي لمجلد سهل التعامل معه
+          # التعديل هنا: استخدام --enable-plugin=pyqt6
+          python -m nuitka --standalone --remove-output --enable-plugin=pyqt6 --assume-yes-for-downloads hardplayer.py
           mkdir -p package_root/usr/bin
           cp -r hardplayer.dist/* package_root/usr/bin/
           mv package_root/usr/bin/hardplayer package_root/usr/bin/hardplayer-bin
-          
-          # إنشاء ملف تشغيل بسيط (Wrapper) ليجد المكتبات بجانبه
-          echo -e '#!/bin/bash\n/usr/bin/hardplayer-bin "$@"' > package_root/usr/bin/hardplayer
+          echo -e '#!/bin/bash\nLD_LIBRARY_PATH=/usr/bin /usr/bin/hardplayer-bin "$@"' > package_root/usr/bin/hardplayer
           chmod +x package_root/usr/bin/hardplayer
 
       - name: Create Linux Packages (DEB, RPM, Arch)
         if: runner.os == 'Linux'
         run: |
-          # 1. Debian/Ubuntu (.deb)
-          fpm -s dir -t deb -n hardplayer -v 1.0.6 -C package_root .
-          
-          # 2. Fedora (.rpm)
-          fpm -s dir -t rpm -n hardplayer -v 1.0.6 -C package_root .
-          
-          # 3. Arch Linux (.pkg.tar.zst)
-          fpm -s dir -t pacman -n hardplayer -v 1.0.6 -C package_root .
+          # إنشاء الحزم بصيغ مختلفة
+          fpm -s dir -t deb -n hardplayer -v 1.0.7 -C package_root .
+          fpm -s dir -t rpm -n hardplayer -v 1.0.7 -C package_root .
+          fpm -s dir -t pacman -n hardplayer -v 1.0.7 -C package_root .
 
       - name: Build with Nuitka (Windows)
         if: runner.os == 'Windows'
         run: |
-          python -m nuitka --standalone --remove-output --windows-disable-console --assume-yes-for-downloads --include-qt-plugins=all hardplayer.py
+          # التعديل هنا: استخدام --enable-plugin=pyqt6 لويندوز أيضاً
+          python -m nuitka --standalone --remove-output --windows-disable-console --assume-yes-for-downloads --enable-plugin=pyqt6 hardplayer.py
           Compress-Archive -Path hardplayer.dist -DestinationPath hardplayer-windows-x64.zip
 
       - name: Release Assets
