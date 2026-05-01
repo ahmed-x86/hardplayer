@@ -1,4 +1,4 @@
-name: HardPlayer Multi-Distro Build (v1.0.7)
+name: HardPlayer Bulletproof Build (v1.0.8)
 
 on:
   push:
@@ -45,27 +45,42 @@ jobs:
       - name: Build with Nuitka (Linux)
         if: runner.os == 'Linux'
         run: |
-          # التعديل هنا: استخدام --enable-plugin=pyqt6
+          # بناء البرنامج الأساسي
           python -m nuitka --standalone --remove-output --enable-plugin=pyqt6 --assume-yes-for-downloads hardplayer.py
+          
+          # تجهيز المجلد الوهمي للحزمة
           mkdir -p package_root/usr/bin
           cp -r hardplayer.dist/* package_root/usr/bin/
-          mv package_root/usr/bin/hardplayer package_root/usr/bin/hardplayer-bin
+          
+          # إصلاح الخطأ: Nuitka في لينكس يضيف .bin للملف
+          mv package_root/usr/bin/hardplayer.bin package_root/usr/bin/hardplayer-bin
+          
+          # إنشاء ملف التشغيل (Wrapper)
           echo -e '#!/bin/bash\nLD_LIBRARY_PATH=/usr/bin /usr/bin/hardplayer-bin "$@"' > package_root/usr/bin/hardplayer
           chmod +x package_root/usr/bin/hardplayer
 
       - name: Create Linux Packages (DEB, RPM, Arch)
         if: runner.os == 'Linux'
         run: |
-          # إنشاء الحزم بصيغ مختلفة
-          fpm -s dir -t deb -n hardplayer -v 1.0.7 -C package_root .
-          fpm -s dir -t rpm -n hardplayer -v 1.0.7 -C package_root .
-          fpm -s dir -t pacman -n hardplayer -v 1.0.7 -C package_root .
+          # إضافة "-d ffmpeg" لضمان تثبيت محرك الفيديو مع البرنامج عند المستخدمين
+          fpm -s dir -t deb -n hardplayer -v 1.0.8 -d ffmpeg -C package_root .
+          fpm -s dir -t rpm -n hardplayer -v 1.0.8 -d ffmpeg -C package_root .
+          fpm -s dir -t pacman -n hardplayer -v 1.0.8 -d ffmpeg -C package_root .
 
-      - name: Build with Nuitka (Windows)
+      - name: Build with Nuitka & Bundle FFmpeg (Windows)
         if: runner.os == 'Windows'
         run: |
-          # التعديل هنا: استخدام --enable-plugin=pyqt6 لويندوز أيضاً
+          # 1. بناء البرنامج لويندوز
           python -m nuitka --standalone --remove-output --windows-disable-console --assume-yes-for-downloads --enable-plugin=pyqt6 hardplayer.py
+          
+          # 2. تحميل FFmpeg لويندوز لدمجه مع البرنامج (باستخدام روابط BtbN السريعة والمستقرة)
+          Invoke-WebRequest -Uri "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip" -OutFile "ffmpeg.zip"
+          Expand-Archive ffmpeg.zip -DestinationPath temp_ffmpeg
+          
+          # 3. نسخ ملفات التشغيل إلى مجلد البرنامج
+          Copy-Item temp_ffmpeg\*\bin\*.exe -Destination hardplayer.dist\
+          
+          # 4. ضغط المجلد بالكامل في ملف ZIP
           Compress-Archive -Path hardplayer.dist -DestinationPath hardplayer-windows-x64.zip
 
       - name: Release Assets
