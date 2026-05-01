@@ -1,4 +1,4 @@
-name: HardPlayer Final Combat Build (v1.2.0)
+name: HardPlayer Production Build (v1.2.1)
 
 on:
   push:
@@ -59,9 +59,10 @@ jobs:
       - name: Create Linux Packages
         if: runner.os == 'Linux'
         run: |
-          fpm -s dir -t deb -n hardplayer -v 1.1.9 -d ffmpeg -C package_root .
-          fpm -s dir -t rpm -n hardplayer -v 1.1.9 -d ffmpeg -C package_root .
-          fpm -s dir -t pacman -n hardplayer -v 1.1.9 -d ffmpeg -C package_root .
+          # تم تحديث الإصدار هنا ليكون 1.2.1 متوافق مع الـ Tag
+          fpm -s dir -t deb -n hardplayer -v 1.2.1 -d ffmpeg -C package_root .
+          fpm -s dir -t rpm -n hardplayer -v 1.2.1 -d ffmpeg -C package_root .
+          fpm -s dir -t pacman -n hardplayer -v 1.2.1 -d ffmpeg -C package_root .
 
       - name: Build with Nuitka (Windows)
         if: runner.os == 'Windows'
@@ -69,10 +70,12 @@ jobs:
           # 1. Standard Nuitka Build
           python -m nuitka --standalone --remove-output --enable-plugin=pyqt6 --include-qt-plugins=all --assume-yes-for-downloads hardplayer.py
           
-          # 2. Get FFmpeg SHARED DLLs (Essential for QtMultimedia)
+          # 2. Get FFmpeg SHARED Build (Essential for QtMultimedia AND backup engine)
           Invoke-WebRequest -Uri "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl-shared.zip" -OutFile "ffmpeg-shared.zip"
           Expand-Archive ffmpeg-shared.zip -DestinationPath temp_ffmpeg
+          # نسخ الـ DLLs عشان Qt والـ EXEs (ffplay/ffmpeg) عشان المحرك الاحتياطي
           Copy-Item temp_ffmpeg\*\bin\*.dll -Destination hardplayer.dist\ -Force
+          Copy-Item temp_ffmpeg\*\bin\*.exe -Destination hardplayer.dist\ -Force
           
           # 3. Manually copy ALL PyQt6 Binaries and Plugins to fix missing dependencies
           $PyQt6Path = python -c "import PyQt6, os; print(os.path.dirname(PyQt6.__file__))"
@@ -99,3 +102,4 @@ jobs:
             *.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          

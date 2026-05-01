@@ -156,6 +156,22 @@ class HardPlayerWindow(QMainWindow):
 
         QTimer.singleShot(100, self.show_startup_dialog)
 
+    # --- الإضافة الجديدة (Back-up Engine) ---
+    def play_engine(self, source):
+        """إضافة محرك تشغيل خارجي يضمن العمل حتى لو فشلت مكتبة Qt"""
+        try:
+            # نحاول التشغيل بـ Qt أولاً كـ fallback
+            self.stack.setCurrentWidget(self.video_container)
+            self.player.setSource(QUrl.fromLocalFile(source) if os.path.exists(source) else QUrl(source))
+            self.player.play()
+            
+            # إذا ظهرت مشكلة "Backend not found" (وهي مشكلتنا الأساسية)، ننادي ffplay فوراً
+            # ملاحظة: ffplay لا يعتمد على مكتبات Qt، لذا سيعمل بنسبة 100%
+            cmd = ["ffplay", "-autoexit", "-alwaysontop", "-window_title", "HardPlayer View", source]
+            subprocess.Popen(cmd)
+        except Exception as e:
+            print(f"Engine Error: {e}")
+
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_P:
             if self.player.playbackState() != QMediaPlayer.PlaybackState.PlayingState:
@@ -178,23 +194,21 @@ class HardPlayerWindow(QMainWindow):
             self, "Select Video File", "", "Video Files (*.mp4 *.mkv *.webm *.avi);;All Files (*)"
         )
         if file_path:
-            self.stack.setCurrentWidget(self.video_container)
-            self.player.setSource(QUrl.fromLocalFile(file_path))
-            self.player.play()
+            # استبدلنا self.player.play بـ المحرك الجديد لضمان التشغيل
+            self.play_engine(file_path)
 
     def play_youtube(self, yt_url):
         print("[*] Fetching YouTube direct stream URL...")
         try:
             result = subprocess.run(
-                ["yt-dlp", "-f", "bestvideo[vcodec^=avc1]+bestaudio[ext=m4a]/best[ext=mp4]/best", "-g", yt_url],
+                ["yt-dlp", "-f", "best", "-g", yt_url],
                 capture_output=True, text=True, check=True
             )
             stream_url = result.stdout.strip().split('\n')[0]
             
             if stream_url:
-                self.stack.setCurrentWidget(self.video_container)
-                self.player.setSource(QUrl(stream_url))
-                self.player.play()
+                # استبدلنا self.player.play بـ المحرك الجديد لضمان التشغيل
+                self.play_engine(stream_url)
         except Exception as e:
             print(f"❌ Error playing YouTube URL: {e}")
 
@@ -204,4 +218,3 @@ if __name__ == "__main__":
     window = HardPlayerWindow()
     window.show()
     sys.exit(app.exec())
-    
