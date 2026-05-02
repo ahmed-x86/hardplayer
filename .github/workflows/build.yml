@@ -1,16 +1,16 @@
-name: HardPlayer Production Build (v2.0.1)
+name: HardPlayer Evolution (v3.0.0)
 
 on:
   push:
     tags:
-      - 'v*'
+      - 'v3*'
 
 permissions:
   contents: write
 
 jobs:
   build:
-    name: Build & Package (Linux Only)
+    name: Build & Package (Linux Multi-Distro)
     runs-on: ubuntu-latest
 
     steps:
@@ -22,22 +22,23 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Dependencies
+      - name: Install Build Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install PyQt6 python-mpv nuitka zstandard ordered-set
 
-      - name: Install Packaging Tools
+      - name: Install OS Packaging Tools
         run: |
           sudo apt-get update
           sudo apt-get install -y ruby ruby-dev rubygems build-essential rpm libarchive-tools zstd
           sudo gem install --no-document fpm
 
-      - name: Build with Nuitka
+      - name: Build with Nuitka (Standalone Optimization)
         run: |
+          # بناء التطبيق مع تفعيل دعم PyQt6 وتجاهل الملحقات غير الضرورية لتقليل الحجم
           python -m nuitka --standalone --remove-output --enable-plugin=pyqt6 --assume-yes-for-downloads hardplayer.py
           
-          # تنظيف الحزمة من مكتبات التشفير المدمجة لمنع التعارض
+          # تنظيف مكتبات التشفير المدمجة لضمان التوافق مع OpenSSL الخاص بنظام المستخدم (Preventing Segfaults)
           rm -f hardplayer.dist/libssl.so* hardplayer.dist/libcrypto.so*
           
           mkdir -p package_root/opt/hardplayer
@@ -45,25 +46,34 @@ jobs:
           cp -r hardplayer.dist/* package_root/opt/hardplayer/
           mv package_root/opt/hardplayer/hardplayer.bin package_root/opt/hardplayer/hardplayer-bin
           
-          # إنشاء سكربت التشغيل
+          # إنشاء سكربت التشغيل (Wrapper) لضبط مسارات المكتبات
           echo '#!/bin/bash' > package_root/usr/bin/hardplayer
           echo 'export LD_LIBRARY_PATH=/opt/hardplayer:$LD_LIBRARY_PATH' >> package_root/usr/bin/hardplayer
           echo 'export QT_PLUGIN_PATH=/opt/hardplayer/PyQt6/Qt6/plugins' >> package_root/usr/bin/hardplayer
           echo 'exec /opt/hardplayer/hardplayer-bin "$@"' >> package_root/usr/bin/hardplayer
           chmod +x package_root/usr/bin/hardplayer
 
-      - name: Create Linux Packages
+      - name: Generate Production Packages (DEB, RPM, Pacman)
         run: |
-          # إضافة openssl كمتطلب أساسي لضمان وجود مكتبات التشفير في نظام المستخدم
-          fpm -s dir -t deb -n hardplayer -v 2.0.1 -d mpv -d ffmpeg -d yt-dlp -d openssl -C package_root .
-          fpm -s dir -t rpm -n hardplayer -v 2.0.1 -d mpv -d ffmpeg -d yt-dlp -d openssl -C package_root .
-          fpm -s dir -t pacman -n hardplayer -v 2.0.1 -d mpv -d ffmpeg -d yt-dlp -d openssl -C package_root .
+          # الوصف الجديد للحزمة يعكس ميزة اليوتيوب
+          DESC="HardPlayer v3: High-performance Media Player with Advanced YouTube Quality Selection and GPU Hardware Acceleration support."
+          
+          # إنشاء الحزم مع إضافة الاعتمادات الأساسية لليوتيوب (mpv, yt-dlp)
+          fpm -s dir -t deb -n hardplayer -v 3.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d openssl -C package_root .
+          fpm -s dir -t rpm -n hardplayer -v 3.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d openssl -C package_root .
+          fpm -s dir -t pacman -n hardplayer -v 3.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d openssl -C package_root .
 
-      - name: Release Assets
+      - name: Deploy Release Assets
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/v3')
         with:
-          name: Release ${{ github.ref_name }} - Fixed
+          name: HardPlayer v3.0.0 - YouTube Quality Master 🎬
+          body: |
+            ### ماذا الجديد في الإصدار الثالث؟
+            * **YouTube Quality Selector**: التحكم الكامل في اختيار الجودة (Format ID) قبل التشغيل.
+            * **Advanced Decoding Logic**: تحسين واجهة اختيار العتاد (GPU/CPU) لضمان أعلى أداء.
+            * **Arch Linux Optimized**: بناء مستقر يدعم X11 و Wayland (عبر XCB).
+            * **Fixes**: حل مشكلة تداخل النوافذ في محرك MPV.
           files: |
             *.deb
             *.rpm

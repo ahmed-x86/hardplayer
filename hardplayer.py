@@ -15,7 +15,8 @@ import mpv
 
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, 
                              QWidget, QPushButton, QFileDialog, QDialog, 
-                             QHBoxLayout, QLineEdit, QLabel, QStackedWidget)
+                             QHBoxLayout, QLineEdit, QLabel, QStackedWidget,
+                             QTextEdit)
 from PyQt6.QtCore import Qt, QTimer, QUrl
 from PyQt6.QtGui import QFont
 
@@ -31,6 +32,7 @@ QLabel {{ color: {TEXT}; background-color: transparent; }}
 QPushButton {{ background-color: {SURFACE0}; color: {TEXT}; border: 2px solid {MAUVE}; border-radius: 8px; padding: 8px 16px; font-weight: bold; font-size: 14px; }}
 QPushButton:hover {{ background-color: {MAUVE}; color: {BASE}; }}
 QLineEdit {{ background-color: {SURFACE0}; color: {TEXT}; border: 1px solid {MAUVE}; border-radius: 6px; padding: 8px; font-size: 14px; }}
+QTextEdit {{ background-color: {SURFACE0}; color: {TEXT}; border: 1px solid {MAUVE}; border-radius: 6px; padding: 8px; font-family: monospace; font-size: 13px; }}
 """
 
 # ---------------------------------------------------------
@@ -99,6 +101,67 @@ class DecodingDialog(QDialog):
 
     def select_option(self, hw_arg):
         self.selected_hwdec = hw_arg
+        self.accept()
+
+# ---------------------------------------------------------
+# YouTube Quality Selection Dialog
+# ---------------------------------------------------------
+class YouTubeQualityDialog(QDialog):
+    def __init__(self, yt_url, parent=None):
+        super().__init__(parent)
+        self.yt_url = yt_url
+        self.format_code = "best"
+        self.setWindowTitle("YouTube Video Formats")
+        self.setFixedSize(850, 500)
+        self.setModal(True)
+        
+        layout = QVBoxLayout(self)
+        layout.setSpacing(10)
+        
+        lbl = QLabel(f"🔗 URL: {yt_url}\n⏳ Fetching formats, please wait...")
+        lbl.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        layout.addWidget(lbl)
+        
+        # لعرض المخرجات بدون التفاف الأسطر حتى يظل الجدول منسقاً
+        self.info_text = QTextEdit(self)
+        self.info_text.setReadOnly(True)
+        self.info_text.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
+        layout.addWidget(self.info_text)
+        
+        input_layout = QHBoxLayout()
+        self.format_input = QLineEdit(self)
+        self.format_input.setPlaceholderText("Enter format code (e.g., 299+140 or best)")
+        self.format_input.setText("best")
+        
+        self.play_btn = QPushButton("▶ Continue to Decoding")
+        self.play_btn.clicked.connect(self.accept_format)
+        
+        input_layout.addWidget(QLabel("📝 Format Code:"))
+        input_layout.addWidget(self.format_input)
+        input_layout.addWidget(self.play_btn)
+        
+        layout.addLayout(input_layout)
+        
+        # استخدام Timer لجعل الواجهة تظهر قبل أن يبدأ الجلب (الذي قد يعلق الواجهة لثانية)
+        QTimer.singleShot(100, self.fetch_formats)
+
+    def fetch_formats(self):
+        try:
+            result = subprocess.run(
+                ["yt-dlp", "-F", self.yt_url],
+                capture_output=True, text=True, check=True
+            )
+            self.info_text.setText(result.stdout)
+            # النزول لأسفل الشاشة تلقائياً حيث تتواجد الجودات العالية
+            scrollbar = self.info_text.verticalScrollBar()
+            scrollbar.setValue(scrollbar.maximum())
+        except Exception as e:
+            self.info_text.setText(f"❌ Error fetching formats. Ensure yt-dlp is installed.\n\n{str(e)}")
+
+    def accept_format(self):
+        self.format_code = self.format_input.text().strip()
+        if not self.format_code:
+            self.format_code = "best"
         self.accept()
 
 # ---------------------------------------------------------
@@ -250,11 +313,10 @@ class HardPlayerWindow(QMainWindow):
                 if 'Video' in message or 'Audio' in message or 'Using hardware decoding' in message:
                     print(f"[INFO] {message}")
 
-        # تحديد gpu_context بشكل صريح ليتوافق مع X11
         self.player = mpv.MPV(
             wid=str(int(self.video_widget.winId())),
             vo='gpu',
-            gpu_context='x11egl', # إجبار المحرك على الرسم بداخل نافذة x11
+            gpu_context='x11egl',
             osc=False,
             input_default_bindings=False,
             input_vo_keyboard=False,
@@ -282,6 +344,7 @@ class HardPlayerWindow(QMainWindow):
         dialog = InfoDialog(self)
         dialog.exec()
 
+    # تشغيل الملفات المحلية
     def ask_for_decoding_and_play(self, source):
         print(f"\n{'-'*60}")
         print(f"[*] 📂 Video Selected: {source}")
@@ -319,20 +382,47 @@ class HardPlayerWindow(QMainWindow):
         if file_path:
             self.ask_for_decoding_and_play(file_path)
 
+    # تشغيل مقاطع يوتيوب بالترتيب الجديد
     def play_youtube(self, yt_url):
-        print(f"\n{'-'*60}")
-        print("[*] 🌐 Fetching YouTube direct stream URL...")
-        try:
-            result = subprocess.run(
-                ["yt-dlp", "-f", "bestvideo[vcodec^=avc1]+bestaudio[ext=m4a]/best[ext=mp4]/best", "-g", yt_url],
-                capture_output=True, text=True, check=True
-            )
-            stream_url = result.stdout.strip().split('\n')[0]
+        # 1. نافذة الجودات والصيغ
+        quality_dialog = YouTubeQualityDialog(yt_url, self)
+        if quality_dialog.exec() == QDialog.DialogCode.Accepted:
+            format_code = quality_dialog.format_code
             
-            if stream_url:
-                self.ask_for_decoding_and_play(stream_url)
-        except Exception as e:
-            print(f"❌ Error playing YouTube URL: {e}")
+            # 2. نافذة اختيار العتاد
+            decoding_dialog = DecodingDialog(self)
+            if decoding_dialog.exec() == QDialog.DialogCode.Accepted:
+                selected_hwdec = decoding_dialog.selected_hwdec
+                
+                print(f"\n{'-'*60}")
+                print(f"[*] 🌐 YouTube URL: {yt_url}")
+                print(f"[*] 🍿 Format Selected: {format_code}")
+                print(f"[*] 🖥️  Hardware Decoding Requested: {selected_hwdec}")
+                
+                # إعدادات MPV ليوتيوب
+                self.player['hwdec'] = selected_hwdec
+                self.player['ytdl'] = True
+                self.player['ytdl-format'] = format_code
+                
+                self.stack.setCurrentWidget(self.video_container)
+                print(f"[*] ▶️  Passing to MPV Engine...")
+                print(f"{'-'*60}\n")
+                
+                # تمرير الرابط الأصلي مباشرة وسيتكفل mpv بـ ytdl-format
+                self.player.play(yt_url)
+
+                def check_hwdec_status():
+                    current_hwdec = getattr(self.player, 'hwdec_current', 'no')
+                    v_codec = getattr(self.player, 'video_format', 'Unknown')
+                    
+                    print(f"[*] 🎞️  Detected Video Codec: {str(v_codec).upper()}")
+                    
+                    if selected_hwdec != "no" and current_hwdec == "no":
+                        print(f"\n\033[93m[⚠️ WARNING] Falling back to CPU. The GPU doesn't support hardware decoding for the '{str(v_codec).upper()}' codec.\033[0m\n")
+                    elif current_hwdec != "no":
+                        print(f"\n\033[92m[✅ SUCCESS] Hardware decoding is active! Playing via GPU using '{current_hwdec}'.\033[0m\n")
+
+                QTimer.singleShot(1500, check_hwdec_status)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
