@@ -1,66 +1,66 @@
-# 🎬 HardPlayer (v5.0) — The Modular Rebuild
+# 🎬 HardPlayer (v6.0.0) — The UI Revolution 🚀
 
-A lightweight, high-performance video player built with **Python**, **PyQt6**, and the legendary **MPV Engine**. Following the KISS philosophy, v5.0 introduces a fully modular architecture. Compiled into a native binary using **Nuitka** to ensure maximum performance, instant startup, and a minimal footprint on Linux.
+A lightweight, high-performance modular media player built with **Python**, **PyQt6**, and the **MPV Engine**. Version 6.0.0 marks a total visual overhaul, bringing a premium **Catppuccin Mocha** aesthetic and a streamlined **VLC-inspired** control logic. 
+
+Built for Linux ricing enthusiasts who demand both beauty and performance. Compiled into a native binary using **Nuitka**.
 
 ![License](https://img.shields.io/badge/License-GPLv3-blue.svg)
 ![Platform](https://img.shields.io/badge/Platform-Linux%20-lightgrey)
-![Version](https://img.shields.io/badge/Version-5.0.0-mauve)
+![Version](https://img.shields.io/badge/Version-6.0.0-mauve)
+![Theme](https://img.shields.io/badge/Theme-Catppuccin%20Mocha-blue)
 
-## 🚀 What's New in v5.0?
-- **Modular KISS Architecture:** The massive monolithic codebase has been dismantled into logical, easily maintainable components (`config`, `ui`, `mpris`, `youtube`, `hw_decoding`).
-- **Enhanced Nuitka Compilation:** Build processes have been updated to seamlessly trace and bundle the new multi-file structure into a single, highly-optimized standalone binary.
-- **Stable Integrations (Retained from v4):** Full system MPRIS2 integration (KDE Connect), Hardware Decoding fallbacks, and advanced YouTube `yt-dlp` parsing remain fully intact and faster than ever.
+## 🎨 What's New in v6.0?
+- **Total UI Redesign:** Implemented the **Catppuccin Mocha** palette for a professional, eye-friendly dark interface.
+- **KISS Control Bar:** Following the "Keep It Simple, Stupid" philosophy, the top menu bar has been removed. All essential controls are now consolidated into a sleek, unified bottom bar.
+- **Advanced Repeat Logic:** A dedicated smart-toggle button for looping. 
+    - **🔁 ✔️ (Green):** Infinite loop enabled via MPV core.
+    - **🔁 ✖ (Red):** Play once and stop.
+- **Premium Progress Bar:** The seek bar now features a gold-tinted (`#e9d4a4`) "sub-page" highlight, providing clear visual feedback of the played duration with a touch of elegance.
+- **Modular Stability:** Refined the modular architecture introduced in v5, ensuring even faster startup times and lower resource usage.
 
 ## 🛠️ Core Features
-- **Advanced YouTube Quality Selector:** Fetch all available YouTube streams (IDs, Resolution, FPS, Codecs) in a dedicated GUI and pick the exact combination (e.g., `299+140`) that suits your hardware.
-- **Full System Integration (MPRIS2):** Your operating system recognizes HardPlayer natively. Control playback via keyboard media keys, system notifications, or remote tools like KDE Connect.
-- **Smart Hardware Acceleration:** Native support for Intel, AMD, and NVIDIA. Special optimization for **NVIDIA Maxwell** cards using `nvdec-copy`.
-- **MPV Engine Core:** Flawless multi-format support via `libmpv`.
-- **Wayland & X11 Seamless Integration:** Forces strict X11/EGL contexts to prevent detached windows on Wayland compositors like **Hyprland** or **Sway**.
-- **Intelligent Fallback:** Built-in observer that detects if your GPU lacks support for a specific codec and gracefully falls back to CPU decoding.
-- **Catppuccin-Inspired UI:** A clean, dark interface (`#1e1e2a`) that focuses on the content, not the clutter.
+- **Advanced YouTube Stream Parsing:** Integrated `yt-dlp` GUI to pick specific resolutions and codecs (e.g., `303+140`).
+- **Full MPRIS2 Support:** Native Linux integration. Control your media via system trays, lock screens, or **KDE Connect**.
+- **Hardware Acceleration Mastery:** Specialized support for **NVIDIA (NVDEC)**, Intel, and AMD.
+- **Intelligent Fallback:** Real-time monitoring that gracefully switches to CPU decoding if the GPU encounters an unsupported codec.
+- **Wayland-Native Performance:** Optimized for compositors like **Hyprland** and **Sway** with forced X11/EGL contexts where necessary to ensure window stability.
 
-## 🐧 Linux Exclusive
-HardPlayer is built by a Linux user, for Linux users. It is deeply integrated with Linux-specific technologies (like MPRIS, Wayland/X11 workarounds, and specific GPU drivers). **There are currently no plans to support Windows.**
+## 🐧 The Linux Spirit
+HardPlayer is and will always be **Linux-exclusive**. It leverages native Linux technologies to provide a level of integration that cross-platform players simply can't match.
 
-## 📥 Installation & Usage
+## 📥 Installation
 
-### For Arch Linux (The Way):
-If you downloaded the `.zst` package from the GitHub releases:
+### Arch Linux (Pacman):
 ```bash
-sudo pacman -U hardplayer-5.0.0.pkg.tar.zst
+sudo pacman -U hardplayer-6.0.0.pkg.tar.zst
 ```
 
-### Run Locally (Development):
-Since HardPlayer v5 is modular, you need to clone the repository to run it via Python directly:
+### Debian/Ubuntu (DEB):
+```bash
+sudo dpkg -i hardplayer_6.0.0_amd64.deb
+```
+
+### Development Run:
 ```bash
 git clone https://github.com/ahmed-x86/hardplayer.git
 cd hardplayer
 python3 hardplayer.py
 ```
 
-### Build from Source:
-```bash
-# Install Python dependencies (including the D-Bus integration tools)
-pip install PyQt6 python-mpv nuitka zstandard ordered-set dbus-python PyGObject
-
-# Compile to a native binary (Note the --follow-imports flag for the new modular structure)
-python -m nuitka --standalone --remove-output --enable-plugin=pyqt6 --follow-imports --assume-yes-for-downloads hardplayer.py
-```
-
-## 📦 System Dependencies
-HardPlayer requires these tools to be installed on your system:
-- **mpv:** The core media engine (`libmpv`).
-- **FFmpeg:** For backend decoding and info processing.
-- **yt-dlp:** For fetching advanced YouTube stream metadata.
-
 ## ⌨️ Keyboard Shortcuts
 - **`P`** : Open Media Selection (Local / YouTube).
-- **`I`** : Show System FFmpeg & Version Information.
+- **`I`** : Show System FFmpeg & Hardware Info.
+- **`Space`** : Play / Pause (Native MPV).
+
+## 📦 Requirements
+Ensure you have the following installed:
+- `mpv` (libmpv)
+- `ffmpeg`
+- `yt-dlp`
 
 ## 📜 License
-Licensed under **GNU GPL v3**. Freedom for your software, power for your hardware.
+Licensed under **GNU GPL v3**. Open source, privacy-focused, and community-driven.
 
 ---
-**Developed with ☕ and Linux by:** [ahmed-x86](https://github.com/ahmed-x86)  
-*"Keep it simple, keep it fast."*
+**Developed with ☕ and Arch Linux by:** [ahmed-x86](https://github.com/ahmed-x86)  
+*"Keep it simple, keep it elegant, keep it fast."*
