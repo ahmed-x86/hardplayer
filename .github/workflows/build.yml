@@ -1,9 +1,9 @@
-name: HardPlayer Evolution (v5.0.1)
+name: HardPlayer Evolution (v6.0.0)
 
 on:
   push:
     tags:
-      - 'v5*'
+      - 'v6*'
 
 permissions:
   contents: write
@@ -25,22 +25,20 @@ jobs:
       - name: Install OS Packaging Tools & D-Bus Dependencies
         run: |
           sudo apt-get update
-          # Required D-Bus and GLib development packages for MPRIS2 integration
           sudo apt-get install -y ruby ruby-dev rubygems build-essential rpm libarchive-tools zstd libdbus-1-dev libgirepository1.0-dev libcairo2-dev
           sudo gem install --no-document fpm
 
       - name: Install Build Dependencies
         run: |
           python -m pip install --upgrade pip
-          # Dependencies including dbus-python and pinning PyGObject to <3.51.0 to avoid girepository-2.0 build errors
           pip install PyQt6 python-mpv nuitka zstandard ordered-set dbus-python "PyGObject<3.51.0"
 
       - name: Build with Nuitka & Setup Desktop Entry
         run: |
-          # Build the application. Added --follow-imports to ensure all the new v5 modules are bundled.
+          # بناء البرنامج مع التأكد من تضمين كافة الموديولات الجديدة (UI components & Logic)
           python -m nuitka --standalone --remove-output --enable-plugin=pyqt6 --follow-imports --assume-yes-for-downloads hardplayer.py
           
-          # Clean up bundled crypto libraries to ensure compatibility with the host system's OpenSSL (Prevents Segfaults)
+          # حذف مكتبات التشفير لضمان التوافقية مع توزيعات Linux المختلفة وتجنب Segfault
           rm -f hardplayer.dist/libssl.so* hardplayer.dist/libcrypto.so*
           
           mkdir -p package_root/opt/hardplayer
@@ -48,25 +46,20 @@ jobs:
           cp -r hardplayer.dist/* package_root/opt/hardplayer/
           mv package_root/opt/hardplayer/hardplayer.bin package_root/opt/hardplayer/hardplayer-bin
           
-          # Create a wrapper script to set library paths dynamically
           echo '#!/bin/bash' > package_root/usr/bin/hardplayer
           echo 'export LD_LIBRARY_PATH=/opt/hardplayer:$LD_LIBRARY_PATH' >> package_root/usr/bin/hardplayer
           echo 'export QT_PLUGIN_PATH=/opt/hardplayer/PyQt6/Qt6/plugins' >> package_root/usr/bin/hardplayer
           echo 'exec /opt/hardplayer/hardplayer-bin "$@"' >> package_root/usr/bin/hardplayer
           chmod +x package_root/usr/bin/hardplayer
 
-          # Setup Desktop Icon and .desktop file
           mkdir -p package_root/usr/share/pixmaps
           mkdir -p package_root/usr/share/applications
-          
-          # Copy your icon into the package
           cp icon.png package_root/usr/share/pixmaps/hardplayer.png
           
-          # Generate the .desktop file
           cat <<EOF > package_root/usr/share/applications/hardplayer.desktop
           [Desktop Entry]
           Name=HardPlayer
-          Comment=High-performance Modular Media Player
+          Comment=VLC-Style Modular Player with Catppuccin Theme
           Exec=hardplayer %U
           Icon=hardplayer
           Terminal=false
@@ -77,26 +70,26 @@ jobs:
 
       - name: Generate Production Packages (DEB, RPM, Pacman)
         run: |
-          # Package description reflecting the v5 modular rewrite
-          DESC="HardPlayer v5: Modular Architecture, High-performance Media Player with MPRIS2 Support & YouTube Integration."
+          DESC="HardPlayer v6: Complete UI Redesign with Catppuccin Mocha, VLC-inspired KISS controls, and enhanced Loop logic."
           
-          # Generate packages
-          fpm -s dir -t deb -n hardplayer -v 5.0.1 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d openssl -C package_root .
-          fpm -s dir -t rpm -n hardplayer -v 5.0.1 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d openssl -C package_root .
-          fpm -s dir -t pacman -n hardplayer -v 5.0.1 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d openssl -C package_root .
+          # توليد الحزم بالإصدار الجديد 6.0.0
+          fpm -s dir -t deb -n hardplayer -v 6.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
+          fpm -s dir -t rpm -n hardplayer -v 6.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
+          fpm -s dir -t pacman -n hardplayer -v 6.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
 
       - name: Deploy Release Assets
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/v5')
+        if: startsWith(github.ref, 'refs/tags/v6')
         with:
-          name: HardPlayer v5.0.1 - The Modular Rebuild 🧩🚀
+          name: HardPlayer v6.0.0 - The UI Revolution 🎨🚀
           body: |
-            ### What's New in v5.0.1?
-            * **CI/CD Fix**: Resolved a pipeline failure caused by breaking changes in the `PyGObject` library dependency tree.
-            * **Modular Codebase**: Complete structural rewrite following the KISS philosophy. The code is now split into logical components (UI, MPRIS, HW Decoding, YouTube logic) making it lighter and easier to maintain.
-            * **Optimized Compilation**: Enhanced Nuitka build process seamlessly integrates the new multi-file architecture into a single, highly-optimized standalone binary.
-            * **Stable Integrations**: Retains full system MPRIS2 integration (KDE Connect), Hardware Decoding fallbacks, and advanced YouTube `yt-dlp` parsing.
-            * **System Menu Integration**: Automatically installs the application icon and `.desktop` file so HardPlayer appears seamlessly in your app launcher.
+            ### What's New in v6.0.0?
+            * **Visual Overhaul**: Switched to a professional **Catppuccin Mocha** dark theme for an elite Linux "Ricing" look.
+            * **VLC-Style Layout**: Removed the top menu bar to follow the KISS philosophy, consolidating all controls into a clean, unified bottom bar.
+            * **Advanced Repeat Logic**: Integrated a smart Loop button with real-time visual feedback (🔁 ✔️ / 🔁 ✖) and direct MPV core synchronization.
+            * **Enhanced Progress Bar**: Progress slider now features a "Sub-page" highlight in gold (`#e9d4a4`) for a premium feel.
+            * **Optimized Standalone Binary**: Improved Nuitka build process for faster startup on Arch, Debian, and Fedora-based systems.
+            * **MPRIS2 Mastery**: Full support for system-wide media controls (KDE Connect, GNOME Shell, etc.).
           files: |
             *.deb
             *.rpm
