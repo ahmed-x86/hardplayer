@@ -2,12 +2,12 @@
 
 import subprocess
 from PyQt6.QtWidgets import (QWidget, QDialog, QVBoxLayout, QHBoxLayout, 
-                             QLabel, QPushButton, QLineEdit)
+                             QLabel, QPushButton, QLineEdit, QSlider, QFrame)
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 
 # Importing the text color from our configuration
-from config import TEXT
+from config import TEXT, BASE
 
 class AspectRatioContainer(QWidget):
     """
@@ -125,3 +125,101 @@ class StartupDialog(QDialog):
             # Connect to the parent window's logic for playing YouTube URLs
             self.parent().play_youtube(url)
             self.accept()
+
+# --- v6 PlayerControlBar with Dark Theme Style ---
+
+class PlayerControlBar(QFrame):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        # تم استخدام لون Crust (#11111b) للخلفية ليتناسق مع الفيديو
+        self.setStyleSheet("""
+            QFrame {
+                background-color: #11111b; 
+                border-top: 2px solid #313244;
+            }
+            QPushButton {
+                background-color: #313244;
+                color: #cdd6f4;
+                border-radius: 6px;
+                padding: 5px;
+                font-size: 16px;
+            }
+            QPushButton:hover {
+                background-color: #45475a;
+            }
+            QSlider::groove:horizontal {
+                border: 1px solid #313244;
+                height: 8px;
+                background: #313244;
+                margin: 2px 0;
+                border-radius: 4px;
+            }
+            QSlider::sub-page:horizontal {
+                background: #e9d4a4;
+                border-radius: 4px;
+            }
+            QSlider::handle:horizontal {
+                background: #89b4fa;
+                border: 1px solid #89b4fa;
+                width: 16px;
+                height: 16px;
+                margin: -5px 0;
+                border-radius: 8px;
+            }
+            QLabel {
+                color: #cdd6f4; 
+                font-family: 'JetBrains Mono', 'monospace';
+            }
+        """)
+        self.setFixedHeight(70)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(20, 0, 20, 0)
+        layout.setSpacing(15)
+
+        self.play_btn = QPushButton("▶")
+        self.repeat_btn = QPushButton("🔁 ✖") 
+        self.play_btn.setFixedWidth(55)
+        self.repeat_btn.setFixedWidth(75)
+
+        self.slider = QSlider(Qt.Orientation.Horizontal)
+        self.slider.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.slider.setEnabled(False)
+
+        self.time_label = QLabel("00:00/00:00")
+        self.time_label.setFixedWidth(130)
+        self.time_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.stop_btn = QPushButton("⏹")
+        self.prev_btn = QPushButton("⏮")
+        self.next_btn = QPushButton("⏭")
+        for btn in [self.stop_btn, self.prev_btn, self.next_btn]:
+            btn.setFixedWidth(55)
+
+        layout.addWidget(self.play_btn)
+        layout.addWidget(self.repeat_btn)
+        layout.addWidget(self.slider, 1)
+        layout.addWidget(self.time_label)
+        layout.addWidget(self.stop_btn)
+        layout.addWidget(self.prev_btn)
+        layout.addWidget(self.next_btn)
+
+    def set_repeat_status(self, is_active):
+        if is_active:
+            self.repeat_btn.setText("🔁 ✔️")
+            self.repeat_btn.setStyleSheet("""
+                QPushButton {
+                    color: #afd89b; 
+                    border: 1px solid #afd89b; 
+                    background-color: #313244;
+                    font-weight: bold;
+                }
+            """)
+        else:
+            self.repeat_btn.setText("🔁 ✖")
+            self.repeat_btn.setStyleSheet("""
+                QPushButton {
+                    color: #f38ba8; 
+                    border: 1px solid #f38ba8; 
+                    background-color: #313244;
+                }
+            """)
