@@ -1,4 +1,4 @@
-name: HardPlayer Evolution (v5.0.0)
+name: HardPlayer Evolution (v5.0.1)
 
 on:
   push:
@@ -32,8 +32,8 @@ jobs:
       - name: Install Build Dependencies
         run: |
           python -m pip install --upgrade pip
-          # Dependencies including dbus-python and PyGObject for KDE Connect
-          pip install PyQt6 python-mpv nuitka zstandard ordered-set dbus-python PyGObject
+          # Dependencies including dbus-python and pinning PyGObject to <3.51.0 to avoid girepository-2.0 build errors
+          pip install PyQt6 python-mpv nuitka zstandard ordered-set dbus-python "PyGObject<3.51.0"
 
       - name: Build with Nuitka & Setup Desktop Entry
         run: |
@@ -81,21 +81,22 @@ jobs:
           DESC="HardPlayer v5: Modular Architecture, High-performance Media Player with MPRIS2 Support & YouTube Integration."
           
           # Generate packages
-          fpm -s dir -t deb -n hardplayer -v 5.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d openssl -C package_root .
-          fpm -s dir -t rpm -n hardplayer -v 5.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d openssl -C package_root .
-          fpm -s dir -t pacman -n hardplayer -v 5.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d openssl -C package_root .
+          fpm -s dir -t deb -n hardplayer -v 5.0.1 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d openssl -C package_root .
+          fpm -s dir -t rpm -n hardplayer -v 5.0.1 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d openssl -C package_root .
+          fpm -s dir -t pacman -n hardplayer -v 5.0.1 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d openssl -C package_root .
 
       - name: Deploy Release Assets
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/v5')
         with:
-          name: HardPlayer v5.0.0 - The Modular Rebuild 🧩🚀
+          name: HardPlayer v5.0.1 - The Modular Rebuild 🧩🚀
           body: |
-            ### What's New in v5.0.0?
+            ### What's New in v5.0.1?
+            * **CI/CD Fix**: Resolved a pipeline failure caused by breaking changes in the `PyGObject` library dependency tree.
             * **Modular Codebase**: Complete structural rewrite following the KISS philosophy. The code is now split into logical components (UI, MPRIS, HW Decoding, YouTube logic) making it lighter and easier to maintain.
             * **Optimized Compilation**: Enhanced Nuitka build process seamlessly integrates the new multi-file architecture into a single, highly-optimized standalone binary.
             * **Stable Integrations**: Retains full system MPRIS2 integration (KDE Connect), Hardware Decoding fallbacks, and advanced YouTube `yt-dlp` parsing.
-            * **Bug Fixes**: Improved Wayland compatibility and native window embedding via dynamic environment variables.
+            * **System Menu Integration**: Automatically installs the application icon and `.desktop` file so HardPlayer appears seamlessly in your app launcher.
           files: |
             *.deb
             *.rpm
