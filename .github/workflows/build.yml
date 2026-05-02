@@ -1,9 +1,9 @@
-name: HardPlayer Evolution (v8.0.0)
+name: HardPlayer Evolution (v9.0.0)
 
 on:
   push:
     tags:
-      - 'v8*'
+      - 'v9*'
 
 permissions:
   contents: write
@@ -70,26 +70,25 @@ jobs:
 
       - name: Generate Production Packages (DEB, RPM, Pacman)
         run: |
-          DESC="HardPlayer v8: Major UI/UX stability update, fixing progress bar interaction, media keys, and time formatting."
+          DESC="HardPlayer v9: Native YouTube search integration powered by yt-dlp, lightning-fast parsing, and visual result cards."
           
-          # توليد الحزم بالإصدار الجديد 8.0.0
-          fpm -s dir -t deb -n hardplayer -v 8.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
-          fpm -s dir -t rpm -n hardplayer -v 8.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
-          fpm -s dir -t pacman -n hardplayer -v 8.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
+          # توليد الحزم بالإصدار الجديد 9.0.0
+          fpm -s dir -t deb -n hardplayer -v 9.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
+          fpm -s dir -t rpm -n hardplayer -v 9.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
+          fpm -s dir -t pacman -n hardplayer -v 9.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
 
       - name: Deploy Release Assets
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/v8')
+        if: startsWith(github.ref, 'refs/tags/v9')
         with:
-          name: HardPlayer v8.0.0 - The Polish Update ✨🎯
+          name: HardPlayer v9.0.0 - The Search Revolution 🔍🚀
           body: |
-            ### What's New & Fixed in v8.0.0?
-            * **Keyboard Navigation Fixed**: Solved the UI conflict (focus stealing). Now, using Left/Right arrow keys smoothly seeks through the video without the progress bar glitching or fighting back.
-            * **Media Keys & Hardware Compatibility**: Added rock-solid support for hardware media keys, including fallback for standard function keys (F7, F8, F9) to ensure compatibility across different laptop keyboards.
-            * **Time Format & UI Glitch Resolved**: 
-              - Removed the annoying thick line (stylesheet leakage) that appeared specifically above the video time duration.
-              - The time label now dynamically supports hours (e.g., `01:28:11`) with cleaner, more readable spacing.
-            * **Smart Playlist Wrapping**: Pressing "Next" on the last video or "Previous" on the first video now seamlessly loops around the playlist.
+            ### What's New in v9.0.0?
+            * **Native YouTube Search:** Directly search YouTube from within the application. Enter a query instead of a URL to instantly fetch the top 5 results.
+            * **Lightning-Fast Parsing:** Powered by `yt-dlp`'s `--flat-playlist` capability, delivering search results in milliseconds without heavy metadata extraction.
+            * **Visual Result Cards:** Search results are displayed in beautifully designed, Catppuccin-themed cards featuring asynchronous thumbnails (zero UI freezing), channel info, and descriptions.
+            * **Zero External Bloat:** Reliable native JSON extraction using `yt-dlp`, completely bypassing dependency hell from unstable third-party search libraries.
+            * **Unified Media Dialog:** The `P` shortcut is now a universal hub for local files, direct URLs, and YouTube searches.
           files: |
             *.deb
             *.rpm
