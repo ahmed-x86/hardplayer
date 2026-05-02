@@ -1,4 +1,4 @@
-name: HardPlayer Production Build (v2.0.0)
+name: HardPlayer Production Build (v2.0.1)
 
 on:
   push:
@@ -25,7 +25,6 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          # إضافة python-mpv كمتطلب أساسي للمشروع الآن
           pip install PyQt6 python-mpv nuitka zstandard ordered-set
 
       - name: Install Packaging Tools
@@ -36,8 +35,11 @@ jobs:
 
       - name: Build with Nuitka
         run: |
-          # إزالة --include-qt-plugins=multimedia لأننا انتقلنا لمحرك mpv
           python -m nuitka --standalone --remove-output --enable-plugin=pyqt6 --assume-yes-for-downloads hardplayer.py
+          
+          # تنظيف الحزمة من مكتبات التشفير المدمجة لمنع التعارض
+          rm -f hardplayer.dist/libssl.so* hardplayer.dist/libcrypto.so*
+          
           mkdir -p package_root/opt/hardplayer
           mkdir -p package_root/usr/bin
           cp -r hardplayer.dist/* package_root/opt/hardplayer/
@@ -52,16 +54,16 @@ jobs:
 
       - name: Create Linux Packages
         run: |
-          # تحديث الإصدار إلى 2.0.0
-          # إضافة mpv كمتطلب أساسي (Dependency) للنظام لكي يعمل التطبيق
-          fpm -s dir -t deb -n hardplayer -v 2.0.0 -d mpv -d ffmpeg -d yt-dlp -C package_root .
-          fpm -s dir -t rpm -n hardplayer -v 2.0.0 -d mpv -d ffmpeg -d yt-dlp -C package_root .
-          fpm -s dir -t pacman -n hardplayer -v 2.0.0 -d mpv -d ffmpeg -d yt-dlp -C package_root .
+          # إضافة openssl كمتطلب أساسي لضمان وجود مكتبات التشفير في نظام المستخدم
+          fpm -s dir -t deb -n hardplayer -v 2.0.1 -d mpv -d ffmpeg -d yt-dlp -d openssl -C package_root .
+          fpm -s dir -t rpm -n hardplayer -v 2.0.1 -d mpv -d ffmpeg -d yt-dlp -d openssl -C package_root .
+          fpm -s dir -t pacman -n hardplayer -v 2.0.1 -d mpv -d ffmpeg -d yt-dlp -d openssl -C package_root .
 
       - name: Release Assets
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
+          name: Release ${{ github.ref_name }} - Fixed
           files: |
             *.deb
             *.rpm
