@@ -1,18 +1,23 @@
 #!/usr/bin/env python3
 
 import os
-# Force FFmpeg to use software decoding to prevent hardware acceleration black screens
-os.environ["FFMPEG_HWACCEL"] = "0"
+# Force X11 backend to prevent MPV from opening a separate window on Arch Linux / Wayland
+os.environ["QT_QPA_PLATFORM"] = "xcb"
+# خدعة قوية: إخفاء Wayland عن المحرك لكي لا يتجاهل نافذة الدمج (WID)
+if "WAYLAND_DISPLAY" in os.environ:
+    del os.environ["WAYLAND_DISPLAY"]
 
 import sys
 import subprocess
+import shutil
+import locale
+import mpv
+
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, 
                              QWidget, QPushButton, QFileDialog, QDialog, 
                              QHBoxLayout, QLineEdit, QLabel, QStackedWidget)
 from PyQt6.QtCore import Qt, QTimer, QUrl
 from PyQt6.QtGui import QFont
-from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
-from PyQt6.QtMultimediaWidgets import QVideoWidget
 
 BASE = "#1e1e2a"
 TEXT = "#cdd6f4"
@@ -29,7 +34,75 @@ QLineEdit {{ background-color: {SURFACE0}; color: {TEXT}; border: 1px solid {MAU
 """
 
 # ---------------------------------------------------------
-# Aspect Ratio Container to fix black borders
+# GPU Detection Logic
+# ---------------------------------------------------------
+def get_decoding_options():
+    options = [("CPU (Software Decoding)", "no")]
+    try:
+        gpu_info = subprocess.check_output(["lspci"], text=True).lower()
+    except:
+        gpu_info = ""
+
+    if "intel" in gpu_info:
+        options.append(("Intel GPU", "vaapi"))
+
+    if "amd" in gpu_info or "ati" in gpu_info:
+        options.append(("AMD GPU", "vaapi"))
+
+    if "nvidia" in gpu_info:
+        if shutil.which("nvidia-smi"):
+            try:
+                cc_out = subprocess.check_output(["nvidia-smi", "--query-gpu=compute_cap", "--format=csv,noheader"], text=True)
+                major_cc = int(cc_out.split('.')[0])
+                if major_cc < 6:
+                    options.append(("Nvidia GPU (Maxwell/Older)", "nvdec-copy"))
+                else:
+                    options.append(("Nvidia GPU (Modern Cards)", "nvdec"))
+            except:
+                options.append(("Nvidia GPU", "nvdec-copy"))
+        else:
+            options.append(("Nvidia GPU", "nvdec-copy"))
+
+    try:
+        lsmod_out = subprocess.getoutput("lsmod")
+        if "nouveau" in lsmod_out.lower():
+            options.append(("Nvidia Open Source Driver (Nouveau)", "vaapi"))
+    except:
+        pass
+
+    return options
+
+# ---------------------------------------------------------
+# Decoding Selection Dialog
+# ---------------------------------------------------------
+class DecodingDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Hardware Decoding")
+        self.setFixedSize(400, 250)
+        self.setModal(True)
+        self.selected_hwdec = "no"
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(10)
+
+        lbl = QLabel("🖥️ Select Decoding Device:", self)
+        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lbl.setFont(QFont("Arial", 12, QFont.Weight.Bold))
+        layout.addWidget(lbl)
+
+        options = get_decoding_options()
+        for name, hw_arg in options:
+            btn = QPushButton(name)
+            btn.clicked.connect(lambda checked, h=hw_arg: self.select_option(h))
+            layout.addWidget(btn)
+
+    def select_option(self, hw_arg):
+        self.selected_hwdec = hw_arg
+        self.accept()
+
+# ---------------------------------------------------------
+# Aspect Ratio Container
 # ---------------------------------------------------------
 class AspectRatioContainer(QWidget):
     def __init__(self, child_widget, bg_color):
@@ -38,7 +111,6 @@ class AspectRatioContainer(QWidget):
         self.child = child_widget
         self.child.setParent(self)
         
-        self.child.setAspectRatioMode(Qt.AspectRatioMode.IgnoreAspectRatio)
         self.aspect_ratio = 16.0 / 9.0
 
     def resizeEvent(self, event):
@@ -59,7 +131,7 @@ class AspectRatioContainer(QWidget):
         super().resizeEvent(event)
 
 # ---------------------------------------------------------
-# FFmpeg Info Dialog (Triggered by 'I' key)
+# FFmpeg Info Dialog
 # ---------------------------------------------------------
 class InfoDialog(QDialog):
     def __init__(self, parent=None):
@@ -94,7 +166,6 @@ class InfoDialog(QDialog):
                 ["ffmpeg", "-version"],
                 capture_output=True, text=True, check=True
             )
-            # Display only the first two lines of the ffmpeg output for cleaner look
             lines = result.stdout.strip().split('\n')[:2]
             self.info_text.setText("\n".join(lines))
         except FileNotFoundError:
@@ -159,25 +230,45 @@ class HardPlayerWindow(QMainWindow):
         self.logo_label.setFont(QFont("Arial", 48, QFont.Weight.Bold))
         logo_layout.addWidget(self.logo_label)
         
-        self.video_widget = QVideoWidget()
+        self.video_widget = QWidget()
+        self.video_widget.setAttribute(Qt.WidgetAttribute.WA_DontCreateNativeAncestors)
+        self.video_widget.setAttribute(Qt.WidgetAttribute.WA_NativeWindow)
+        
         self.video_container = AspectRatioContainer(self.video_widget, BASE)
         
         self.stack.addWidget(self.logo_widget)
         self.stack.addWidget(self.video_container)
         
-        self.player = QMediaPlayer()
-        self.audio_output = QAudioOutput()
-        self.player.setAudioOutput(self.audio_output)
-        self.player.setVideoOutput(self.video_widget)
+        def custom_mpv_logger(loglevel, component, message):
+            msg = message.lower()
+            if "late sei" in msg or "legacy vo" in msg or "streams.videolan.org" in msg:
+                return
+
+            if loglevel in ['error', 'fatal']:
+                print(f"[{loglevel.upper()}] {component}: {message}")
+            elif loglevel == 'info' and component in ['cplayer', 'vd']:
+                if 'Video' in message or 'Audio' in message or 'Using hardware decoding' in message:
+                    print(f"[INFO] {message}")
+
+        # تحديد gpu_context بشكل صريح ليتوافق مع X11
+        self.player = mpv.MPV(
+            wid=str(int(self.video_widget.winId())),
+            vo='gpu',
+            gpu_context='x11egl', # إجبار المحرك على الرسم بداخل نافذة x11
+            osc=False,
+            input_default_bindings=False,
+            input_vo_keyboard=False,
+            keep_open=True,
+            loglevel='info',
+            log_handler=custom_mpv_logger
+        )
 
         QTimer.singleShot(100, self.show_startup_dialog)
 
     def keyPressEvent(self, event):
-        # Key 'P' for opening the media dialog
         if event.key() == Qt.Key.Key_P:
-            if self.player.playbackState() != QMediaPlayer.PlaybackState.PlayingState:
+            if getattr(self.player, 'core_idle', True):
                 self.show_startup_dialog()
-        # Key 'I' for opening the system info dialog
         elif event.key() == Qt.Key.Key_I:
             self.show_info_dialog()
             
@@ -191,17 +282,46 @@ class HardPlayerWindow(QMainWindow):
         dialog = InfoDialog(self)
         dialog.exec()
 
+    def ask_for_decoding_and_play(self, source):
+        print(f"\n{'-'*60}")
+        print(f"[*] 📂 Video Selected: {source}")
+        
+        decoding_dialog = DecodingDialog(self)
+        if decoding_dialog.exec() == QDialog.DialogCode.Accepted:
+            selected_hwdec = decoding_dialog.selected_hwdec
+            
+            print(f"[*] 🖥️  Hardware Decoding Requested: {selected_hwdec}")
+            self.player['hwdec'] = selected_hwdec
+            
+            self.stack.setCurrentWidget(self.video_container)
+            print(f"[*] ▶️  Passing to MPV Engine...")
+            print(f"{'-'*60}\n")
+            
+            self.player.play(source)
+
+            def check_hwdec_status():
+                current_hwdec = getattr(self.player, 'hwdec_current', 'no')
+                v_codec = getattr(self.player, 'video_format', 'Unknown')
+                
+                print(f"[*] 🎞️  Detected Video Codec: {str(v_codec).upper()}")
+                
+                if selected_hwdec != "no" and current_hwdec == "no":
+                    print(f"\n\033[93m[⚠️ WARNING] Falling back to CPU. The GPU doesn't support hardware decoding for the '{str(v_codec).upper()}' codec.\033[0m\n")
+                elif current_hwdec != "no":
+                    print(f"\n\033[92m[✅ SUCCESS] Hardware decoding is active! Playing via GPU using '{current_hwdec}'.\033[0m\n")
+
+            QTimer.singleShot(1500, check_hwdec_status)
+
     def browse_video(self):
         file_path, _ = QFileDialog.getOpenFileName(
             self, "Select Video File", "", "Video Files (*.mp4 *.mkv *.webm *.avi);;All Files (*)"
         )
         if file_path:
-            self.stack.setCurrentWidget(self.video_container)
-            self.player.setSource(QUrl.fromLocalFile(file_path))
-            self.player.play()
+            self.ask_for_decoding_and_play(file_path)
 
     def play_youtube(self, yt_url):
-        print("[*] Fetching YouTube direct stream URL...")
+        print(f"\n{'-'*60}")
+        print("[*] 🌐 Fetching YouTube direct stream URL...")
         try:
             result = subprocess.run(
                 ["yt-dlp", "-f", "bestvideo[vcodec^=avc1]+bestaudio[ext=m4a]/best[ext=mp4]/best", "-g", yt_url],
@@ -210,14 +330,15 @@ class HardPlayerWindow(QMainWindow):
             stream_url = result.stdout.strip().split('\n')[0]
             
             if stream_url:
-                self.stack.setCurrentWidget(self.video_container)
-                self.player.setSource(QUrl(stream_url))
-                self.player.play()
+                self.ask_for_decoding_and_play(stream_url)
         except Exception as e:
             print(f"❌ Error playing YouTube URL: {e}")
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    
+    locale.setlocale(locale.LC_NUMERIC, "C")
+    
     app.setStyleSheet(stylesheet)
     window = HardPlayerWindow()
     window.show()
