@@ -1,9 +1,9 @@
-name: HardPlayer Evolution (v6.0.0)
+name: HardPlayer Evolution (v7.0.0)
 
 on:
   push:
     tags:
-      - 'v6*'
+      - 'v7*'
 
 permissions:
   contents: write
@@ -70,26 +70,25 @@ jobs:
 
       - name: Generate Production Packages (DEB, RPM, Pacman)
         run: |
-          DESC="HardPlayer v6: Complete UI Redesign with Catppuccin Mocha, VLC-inspired KISS controls, and enhanced Loop logic."
+          DESC="HardPlayer v7: Stability update focusing on progress bar interaction and UI branding refinements."
           
-          # توليد الحزم بالإصدار الجديد 6.0.0
-          fpm -s dir -t deb -n hardplayer -v 6.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
-          fpm -s dir -t rpm -n hardplayer -v 6.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
-          fpm -s dir -t pacman -n hardplayer -v 6.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
+          # توليد الحزم بالإصدار الجديد 7.0.0
+          fpm -s dir -t deb -n hardplayer -v 7.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
+          fpm -s dir -t rpm -n hardplayer -v 7.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
+          fpm -s dir -t pacman -n hardplayer -v 7.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
 
       - name: Deploy Release Assets
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/v6')
+        if: startsWith(github.ref, 'refs/tags/v7')
         with:
-          name: HardPlayer v6.0.0 - The UI Revolution 🎨🚀
+          name: HardPlayer v7.0.0 - The Precision Update 🎯🚀
           body: |
-            ### What's New in v6.0.0?
-            * **Visual Overhaul**: Switched to a professional **Catppuccin Mocha** dark theme for an elite Linux "Ricing" look.
-            * **VLC-Style Layout**: Removed the top menu bar to follow the KISS philosophy, consolidating all controls into a clean, unified bottom bar.
-            * **Advanced Repeat Logic**: Integrated a smart Loop button with real-time visual feedback (🔁 ✔️ / 🔁 ✖) and direct MPV core synchronization.
-            * **Enhanced Progress Bar**: Progress slider now features a "Sub-page" highlight in gold (`#e9d4a4`) for a premium feel.
-            * **Optimized Standalone Binary**: Improved Nuitka build process for faster startup on Arch, Debian, and Fedora-based systems.
-            * **MPRIS2 Mastery**: Full support for system-wide media controls (KDE Connect, GNOME Shell, etc.).
+            ### What's New in v7.0.0?
+            * **Slider Interaction Fix**: Implemented a custom `ClickableSlider` for "Jump-on-Click" support and resolved the race condition between the UI timer and manual seeking.
+            * **Branded Startup Screen**: Replaced the placeholder emoji with the official `icon_in_app.png` for a professional, cohesive UI.
+            * **Improved Stop Logic**: The Stop button now gracefully terminates playback and returns the user to the logo screen instead of a blank video container.
+            * **Enhanced Keyboard Controls**: Added native support for arrow keys (Left/Right) for 5-second seeking with UI synchronization.
+            * **Visual Consistency**: Refined the Catppuccin Mocha implementation across all UI components for better "Ricing" compatibility.
           files: |
             *.deb
             *.rpm
