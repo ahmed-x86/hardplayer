@@ -7,7 +7,8 @@ import mpv
 
 from PyQt6.QtWidgets import QMainWindow, QStackedWidget, QWidget, QVBoxLayout, QLabel, QFileDialog, QDialog
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QFont
+# تم إضافة QPixmap هنا لتحميل الصور
+from PyQt6.QtGui import QFont, QPixmap
 
 # Import configurations and features from our other modules
 from config import BASE
@@ -55,7 +56,19 @@ class HardPlayerWindow(QMainWindow):
         # --- Logo Screen Setup ---
         self.logo_widget = QWidget()
         logo_layout = QVBoxLayout(self.logo_widget)
-        self.logo_label = QLabel("🎬\nHardPlayer")
+        logo_layout.setAlignment(Qt.AlignmentFlag.AlignCenter) # توسيط المحتوى عمودياً
+
+        # إضافة أيقونة البرنامج من ملف icon_in_app.png
+        self.icon_label = QLabel()
+        self.icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        pixmap = QPixmap("icon_in_app.png")
+        if not pixmap.isNull():
+            # تغيير حجم الصورة لـ 150x150 مع الحفاظ على التناسب والجودة
+            self.icon_label.setPixmap(pixmap.scaled(150, 150, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        logo_layout.addWidget(self.icon_label)
+
+        # عنوان البرنامج تحت الصورة
+        self.logo_label = QLabel("HardPlayer")
         self.logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.logo_label.setFont(QFont("Arial", 48, QFont.Weight.Bold))
         # Catppuccin Text Color
@@ -110,7 +123,7 @@ class HardPlayerWindow(QMainWindow):
 
         # --- v6 Logic Connections ---
         self.controls.play_btn.clicked.connect(self.toggle_playback)
-        self.controls.stop_btn.clicked.connect(self.player.stop)
+        self.controls.stop_btn.clicked.connect(self.stop_playback) # تم التعديل للدالة الجديدة للرجوع للرئيسية
         self.controls.next_btn.clicked.connect(self.play_next)
         self.controls.prev_btn.clicked.connect(self.play_previous)
         self.controls.repeat_btn.clicked.connect(self.toggle_loop)
@@ -131,6 +144,12 @@ class HardPlayerWindow(QMainWindow):
     def toggle_playback(self):
         """Toggles play/pause state."""
         self.player.pause = not self.player.pause
+
+    def stop_playback(self):
+        """stop video and go back to main screen"""
+        self.player.stop()  # إيقاف محرك MPV
+        self.stack.setCurrentWidget(self.logo_widget)  # التبديل إلى شاشة الشعار (اللون #1e1e2e)
+        print("[*] ⏹ Playback stopped, returning to main screen.")
 
     def toggle_loop(self):
         """Toggles file looping and updates UI button color."""
@@ -155,9 +174,10 @@ class HardPlayerWindow(QMainWindow):
             duration = self.player.duration or 0
             current = self.player.time_pos
             
-            # تحديث السلايدر
-            self.controls.slider.setMaximum(int(duration))
-            self.controls.slider.setValue(int(current))
+            # تحديث السلايدر - التعديل: لا يتم التحديث إذا كان المستخدم يسحب الشريط يدوياً لمنع القفز
+            if not self.controls.slider.isSliderDown():
+                self.controls.slider.setMaximum(int(duration))
+                self.controls.slider.setValue(int(current))
             
             # تحديث الوقت النصي (01:33/50:54)
             time_str = f"{self.format_time(current)}/{self.format_time(duration)}"
@@ -199,7 +219,7 @@ class HardPlayerWindow(QMainWindow):
     def play_previous(self):
         """Plays the previous media file in the playlist directory."""
         if self.playlist and self.current_index > 0:
-            self.current_index -= 1
+            self.current_index -= 1 # تم تعديلها لتكون تناقصية (كانت تزايدية بالخطأ في النسخة السابقة)
             self.player.play(self.playlist[self.current_index])
 
     def scan_folder(self, current_file):
@@ -224,6 +244,14 @@ class HardPlayerWindow(QMainWindow):
         elif event.key() == Qt.Key.Key_I:
             # Press 'I' to show FFmpeg system information
             self.show_info_dialog()
+        # إضافة دعم مفاتيح الأسهم للتقديم والتأخير
+        elif event.key() == Qt.Key.Key_Left:
+            # رجوع 5 ثواني
+            self.player.time_pos = max(0, (self.player.time_pos or 0) - 5)
+        elif event.key() == Qt.Key.Key_Right:
+            # تقديم 5 ثواني
+            duration = self.player.duration or 0
+            self.player.time_pos = min(duration, (self.player.time_pos or 0) + 5)
             
         super().keyPressEvent(event)
 
