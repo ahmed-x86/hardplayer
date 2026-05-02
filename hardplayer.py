@@ -1,24 +1,11 @@
 #!/usr/bin/env python3
 
 import os
-import sys
-import subprocess
-
-
-if os.name == 'nt':
-    try:
-        
-        os.add_dll_directory(os.getcwd())
-    except AttributeError:
-        pass
-    
-    os.environ["QT_PLUGIN_PATH"] = os.path.join(os.getcwd(), "PyQt6", "Qt6", "plugins")
-
-# Force PyQt6 to use ffmpeg backend instead of the broken Windows Media Foundation
-os.environ["QT_MEDIA_BACKEND"] = "ffmpeg"
 # Force FFmpeg to use software decoding to prevent hardware acceleration black screens
 os.environ["FFMPEG_HWACCEL"] = "0"
 
+import sys
+import subprocess
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, 
                              QWidget, QPushButton, QFileDialog, QDialog, 
                              QHBoxLayout, QLineEdit, QLabel, QStackedWidget)
@@ -41,28 +28,39 @@ QPushButton:hover {{ background-color: {MAUVE}; color: {BASE}; }}
 QLineEdit {{ background-color: {SURFACE0}; color: {TEXT}; border: 1px solid {MAUVE}; border-radius: 6px; padding: 8px; font-size: 14px; }}
 """
 
+# ---------------------------------------------------------
+# Aspect Ratio Container to fix black borders
+# ---------------------------------------------------------
 class AspectRatioContainer(QWidget):
     def __init__(self, child_widget, bg_color):
         super().__init__()
         self.setStyleSheet(f"background-color: {bg_color};")
         self.child = child_widget
         self.child.setParent(self)
+        
         self.child.setAspectRatioMode(Qt.AspectRatioMode.IgnoreAspectRatio)
         self.aspect_ratio = 16.0 / 9.0
 
     def resizeEvent(self, event):
         w = self.width()
         h = self.height()
+        
         target_w = w
         target_h = int(w / self.aspect_ratio)
+        
         if target_h > h:
             target_h = h
             target_w = int(h * self.aspect_ratio)
+            
         x = (w - target_w) // 2
         y = (h - target_h) // 2
+        
         self.child.setGeometry(x, y, target_w, target_h)
         super().resizeEvent(event)
 
+# ---------------------------------------------------------
+# FFmpeg Info Dialog (Triggered by 'I' key)
+# ---------------------------------------------------------
 class InfoDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -96,6 +94,7 @@ class InfoDialog(QDialog):
                 ["ffmpeg", "-version"],
                 capture_output=True, text=True, check=True
             )
+            # Display only the first two lines of the ffmpeg output for cleaner look
             lines = result.stdout.strip().split('\n')[:2]
             self.info_text.setText("\n".join(lines))
         except FileNotFoundError:
@@ -103,6 +102,9 @@ class InfoDialog(QDialog):
         except Exception as e:
             self.info_text.setText(f"❌ Error executing FFmpeg: {str(e)}")
 
+# ---------------------------------------------------------
+# Startup Media Dialog
+# ---------------------------------------------------------
 class StartupDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -138,6 +140,9 @@ class StartupDialog(QDialog):
             self.parent().play_youtube(url)
             self.accept()
 
+# ---------------------------------------------------------
+# Main Window
+# ---------------------------------------------------------
 class HardPlayerWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -167,26 +172,12 @@ class HardPlayerWindow(QMainWindow):
 
         QTimer.singleShot(100, self.show_startup_dialog)
 
-    # --- الإضافة الجديدة (Back-up Engine) ---
-    def play_engine(self, source):
-        """إضافة محرك تشغيل خارجي يضمن العمل حتى لو فشلت مكتبة Qt"""
-        try:
-            # نحاول التشغيل بـ Qt أولاً كـ fallback
-            self.stack.setCurrentWidget(self.video_container)
-            self.player.setSource(QUrl.fromLocalFile(source) if os.path.exists(source) else QUrl(source))
-            self.player.play()
-            
-            # إذا ظهرت مشكلة "Backend not found" (وهي مشكلتنا الأساسية)، ننادي ffplay فوراً
-            # ملاحظة: ffplay لا يعتمد على مكتبات Qt، لذا سيعمل بنسبة 100%
-            cmd = ["ffplay", "-autoexit", "-alwaysontop", "-window_title", "HardPlayer View", source]
-            subprocess.Popen(cmd)
-        except Exception as e:
-            print(f"Engine Error: {e}")
-
     def keyPressEvent(self, event):
+        # Key 'P' for opening the media dialog
         if event.key() == Qt.Key.Key_P:
             if self.player.playbackState() != QMediaPlayer.PlaybackState.PlayingState:
                 self.show_startup_dialog()
+        # Key 'I' for opening the system info dialog
         elif event.key() == Qt.Key.Key_I:
             self.show_info_dialog()
             
@@ -205,21 +196,23 @@ class HardPlayerWindow(QMainWindow):
             self, "Select Video File", "", "Video Files (*.mp4 *.mkv *.webm *.avi);;All Files (*)"
         )
         if file_path:
-            # استبدلنا self.player.play بـ المحرك الجديد لضمان التشغيل
-            self.play_engine(file_path)
+            self.stack.setCurrentWidget(self.video_container)
+            self.player.setSource(QUrl.fromLocalFile(file_path))
+            self.player.play()
 
     def play_youtube(self, yt_url):
         print("[*] Fetching YouTube direct stream URL...")
         try:
             result = subprocess.run(
-                ["yt-dlp", "-f", "best", "-g", yt_url],
+                ["yt-dlp", "-f", "bestvideo[vcodec^=avc1]+bestaudio[ext=m4a]/best[ext=mp4]/best", "-g", yt_url],
                 capture_output=True, text=True, check=True
             )
             stream_url = result.stdout.strip().split('\n')[0]
             
             if stream_url:
-                # استبدلنا self.player.play بـ المحرك الجديد لضمان التشغيل
-                self.play_engine(stream_url)
+                self.stack.setCurrentWidget(self.video_container)
+                self.player.setSource(QUrl(stream_url))
+                self.player.play()
         except Exception as e:
             print(f"❌ Error playing YouTube URL: {e}")
 
