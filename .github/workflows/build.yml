@@ -1,9 +1,9 @@
-name: HardPlayer Evolution (v4.0.0)
+name: HardPlayer Evolution (v5.0.0)
 
 on:
   push:
     tags:
-      - 'v4*'
+      - 'v5*'
 
 permissions:
   contents: write
@@ -25,22 +25,22 @@ jobs:
       - name: Install OS Packaging Tools & D-Bus Dependencies
         run: |
           sudo apt-get update
-          # Added D-Bus and GLib development packages to ensure successful build of MPRIS2 libraries
+          # Required D-Bus and GLib development packages for MPRIS2 integration
           sudo apt-get install -y ruby ruby-dev rubygems build-essential rpm libarchive-tools zstd libdbus-1-dev libgirepository1.0-dev libcairo2-dev
           sudo gem install --no-document fpm
 
       - name: Install Build Dependencies
         run: |
           python -m pip install --upgrade pip
-          # Added dbus-python and PyGObject to support KDE Connect integration
+          # Dependencies including dbus-python and PyGObject for KDE Connect
           pip install PyQt6 python-mpv nuitka zstandard ordered-set dbus-python PyGObject
 
-      - name: Build with Nuitka (Standalone Optimization)
+      - name: Build with Nuitka & Setup Desktop Entry
         run: |
-          # Build the application with PyQt6 plugin enabled and assume-yes for downloads
-          python -m nuitka --standalone --remove-output --enable-plugin=pyqt6 --assume-yes-for-downloads hardplayer.py
+          # Build the application. Added --follow-imports to ensure all the new v5 modules are bundled.
+          python -m nuitka --standalone --remove-output --enable-plugin=pyqt6 --follow-imports --assume-yes-for-downloads hardplayer.py
           
-          # Clean up bundled crypto libraries to ensure compatibility with the host system's OpenSSL (Preventing Segfaults)
+          # Clean up bundled crypto libraries to ensure compatibility with the host system's OpenSSL (Prevents Segfaults)
           rm -f hardplayer.dist/libssl.so* hardplayer.dist/libcrypto.so*
           
           mkdir -p package_root/opt/hardplayer
@@ -55,28 +55,47 @@ jobs:
           echo 'exec /opt/hardplayer/hardplayer-bin "$@"' >> package_root/usr/bin/hardplayer
           chmod +x package_root/usr/bin/hardplayer
 
+          # Setup Desktop Icon and .desktop file
+          mkdir -p package_root/usr/share/pixmaps
+          mkdir -p package_root/usr/share/applications
+          
+          # Copy your icon into the package
+          cp icon.png package_root/usr/share/pixmaps/hardplayer.png
+          
+          # Generate the .desktop file
+          cat <<EOF > package_root/usr/share/applications/hardplayer.desktop
+          [Desktop Entry]
+          Name=HardPlayer
+          Comment=High-performance Modular Media Player
+          Exec=hardplayer %U
+          Icon=hardplayer
+          Terminal=false
+          Type=Application
+          Categories=AudioVideo;Video;Player;
+          StartupNotify=true
+          EOF
+
       - name: Generate Production Packages (DEB, RPM, Pacman)
         run: |
-          # The package description reflects the new MPRIS2 system integration feature
-          DESC="HardPlayer v4: High-performance Media Player with Full MPRIS2 Support (KDE Connect) and YouTube Quality Selection."
+          # Package description reflecting the v5 modular rewrite
+          DESC="HardPlayer v5: Modular Architecture, High-performance Media Player with MPRIS2 Support & YouTube Integration."
           
           # Generate packages
-          fpm -s dir -t deb -n hardplayer -v 4.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d openssl -C package_root .
-          fpm -s dir -t rpm -n hardplayer -v 4.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d openssl -C package_root .
-          fpm -s dir -t pacman -n hardplayer -v 4.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d openssl -C package_root .
+          fpm -s dir -t deb -n hardplayer -v 5.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d openssl -C package_root .
+          fpm -s dir -t rpm -n hardplayer -v 5.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d openssl -C package_root .
+          fpm -s dir -t pacman -n hardplayer -v 5.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d openssl -C package_root .
 
       - name: Deploy Release Assets
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/v4')
+        if: startsWith(github.ref, 'refs/tags/v5')
         with:
-          name: HardPlayer v4.0.0 - The MPRIS Update (KDE Connect) 📱🎬
+          name: HardPlayer v5.0.0 - The Modular Rebuild 🧩🚀
           body: |
-            ### What's New in v4.0.0?
-            * **Full System Integration (MPRIS2)**: Control the player using `playerctl` and keyboard media keys.
-            * **KDE Connect Support**: Play, Pause, and Seek directly from your phone or smartwatch.
-            * **Rich Metadata Display**: Video titles and YouTube thumbnails now appear in system media notifications.
-            * **Real-time Synchronization**: Instant updates for playback status and progress bar across the OS.
-            * Plus existing features: High-performance Hardware Decoding and advanced YouTube quality selection.
+            ### What's New in v5.0.0?
+            * **Modular Codebase**: Complete structural rewrite following the KISS philosophy. The code is now split into logical components (UI, MPRIS, HW Decoding, YouTube logic) making it lighter and easier to maintain.
+            * **Optimized Compilation**: Enhanced Nuitka build process seamlessly integrates the new multi-file architecture into a single, highly-optimized standalone binary.
+            * **Stable Integrations**: Retains full system MPRIS2 integration (KDE Connect), Hardware Decoding fallbacks, and advanced YouTube `yt-dlp` parsing.
+            * **Bug Fixes**: Improved Wayland compatibility and native window embedding via dynamic environment variables.
           files: |
             *.deb
             *.rpm
