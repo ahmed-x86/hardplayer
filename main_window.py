@@ -14,7 +14,7 @@ from PyQt6.QtGui import QFont, QPixmap
 from config import BASE
 from mpris_feature import HardPlayerMPRIS
 from hw_decoding import DecodingDialog
-from youtube_feature import YouTubeQualityDialog
+from youtube_feature import YouTubeQualityDialog, YouTubeSearchDialog
 # تم إضافة PlayerControlBar هنا
 from ui_components import AspectRatioContainer, InfoDialog, StartupDialog, PlayerControlBar
 
@@ -177,13 +177,14 @@ class HardPlayerWindow(QMainWindow):
             duration = self.player.duration or 0
             current = self.player.time_pos
             
-            # تحديث السلايدر - التعديل: لا يتم التحديث إذا كان المستخدم يسحب الشريط يدوياً أو يقدم بالكيبورد
+            # تحديث السلايدر
             if not self.controls.slider.isSliderDown() and not getattr(self, '_keyboard_seeking', False):
                 self.controls.slider.setMaximum(int(duration))
                 self.controls.slider.setValue(int(current))
             
-            # تحديث الوقت النصي (01:33/50:54)
-            time_str = f"{self.format_time(current)}/{self.format_time(duration)}"
+            # اكتشاف الساعات وإضافة مسافات جمالية
+            has_hours = duration >= 3600
+            time_str = f"{self.format_time(current, has_hours)} / {self.format_time(duration, has_hours)}"
             self.controls.time_label.setText(time_str)
             
             # تحديث أيقونة الزر ولونها بناءً على الثيم
@@ -192,16 +193,19 @@ class HardPlayerWindow(QMainWindow):
                 self.controls.play_btn.setStyleSheet("color: #cdd6f4; background-color: #313244;")
             else:
                 self.controls.play_btn.setText("⏸")
-                # Highlight active play button with Catppuccin Blue
                 self.controls.play_btn.setStyleSheet("color: #89b4fa; background-color: #313244;")
         else:
             self.controls.slider.setEnabled(False)
-            self.controls.time_label.setText("--:--/--:--")
+            self.controls.time_label.setText("--:-- / --:--")
 
-    def format_time(self, seconds):
-        """Helper to format seconds into MM:SS."""
-        if seconds is None: return "00:00"
-        mins, secs = divmod(int(seconds), 60)
+    def format_time(self, seconds, force_hours=False):
+        """Helper to format seconds into HH:MM:SS or MM:SS."""
+        if seconds is None or seconds < 0: return "00:00"
+        hours, remainder = divmod(int(seconds), 3600)
+        mins, secs = divmod(remainder, 60)
+        
+        if hours > 0 or force_hours:
+            return f"{hours:02d}:{mins:02d}:{secs:02d}"
         return f"{mins:02d}:{secs:02d}"
 
     # --- Original Logic Preserved ---
@@ -323,6 +327,15 @@ class HardPlayerWindow(QMainWindow):
         )
         if file_path: 
             self.ask_for_decoding_and_play(file_path)
+
+    
+    def search_youtube_and_play(self, query):
+        """Searches YouTube and plays the selected video."""
+        search_dialog = YouTubeSearchDialog(query, self)
+        if search_dialog.exec() == QDialog.DialogCode.Accepted:
+            selected_url = search_dialog.selected_url
+            if selected_url:
+                self.play_youtube(selected_url)
 
     def play_youtube(self, yt_url):
         """Handles fetching YouTube formats, asking for HWDEC, and initiating playback."""
