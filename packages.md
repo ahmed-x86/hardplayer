@@ -1,6 +1,3 @@
-```python?code_reference&code_event_index=3
-content = """# 🛠️ HardPlayer v2.0 - Dependencies & Installation
-
 This document lists all the necessary components to run or build **HardPlayer v2** on Arch Linux.
 
 ## 1. System Packages (Arch Linux)
@@ -35,7 +32,3 @@ sudo pacman -S xorg-server-xwayland
 
 ---
 **Maintained by:** [ahmed-x86](https://github.com/ahmed-x86)
-"""
-
-with open("DEPENDENCIES.md", "w", encoding="utf-8") as f:
-    f.write(content)
