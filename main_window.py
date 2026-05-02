@@ -14,7 +14,8 @@ from config import BASE
 from mpris_feature import HardPlayerMPRIS
 from hw_decoding import DecodingDialog
 from youtube_feature import YouTubeQualityDialog
-from ui_components import AspectRatioContainer, InfoDialog, StartupDialog
+# تم إضافة PlayerControlBar هنا
+from ui_components import AspectRatioContainer, InfoDialog, StartupDialog, PlayerControlBar
 
 try:
     from gi.repository import GLib
@@ -31,9 +32,25 @@ class HardPlayerWindow(QMainWindow):
         self.setWindowTitle("HardPlayer")
         self.resize(800, 600)
         
+        # --- v6 UI Layout Setup ---
+        # إزالة شريط القوائم العلوي تماماً
+        self.setMenuBar(None)
+
+        self.central_widget = QWidget()
+        # Catppuccin Mocha Background
+        self.central_widget.setStyleSheet("background-color: #1e1e2e;")
+        self.setCentralWidget(self.central_widget)
+        self.main_layout = QVBoxLayout(self.central_widget)
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.setSpacing(0)
+
         # QStackedWidget allows switching between the logo and the video player
         self.stack = QStackedWidget()
-        self.setCentralWidget(self.stack)
+        self.main_layout.addWidget(self.stack)
+
+        # إضافة شريط التحكم السفلي v6
+        self.controls = PlayerControlBar(self)
+        self.main_layout.addWidget(self.controls)
         
         # --- Logo Screen Setup ---
         self.logo_widget = QWidget()
@@ -41,6 +58,8 @@ class HardPlayerWindow(QMainWindow):
         self.logo_label = QLabel("🎬\nHardPlayer")
         self.logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.logo_label.setFont(QFont("Arial", 48, QFont.Weight.Bold))
+        # Catppuccin Text Color
+        self.logo_label.setStyleSheet("color: #cdd6f4;")
         logo_layout.addWidget(self.logo_label)
         
         # --- Video Screen Setup ---
@@ -49,7 +68,8 @@ class HardPlayerWindow(QMainWindow):
         self.video_widget.setAttribute(Qt.WidgetAttribute.WA_NativeWindow)
         
         # Wrap the video widget in our custom aspect ratio container
-        self.video_container = AspectRatioContainer(self.video_widget, BASE)
+        # Using Catppuccin Crust for the letterboxing
+        self.video_container = AspectRatioContainer(self.video_widget, "#11111b")
         
         self.stack.addWidget(self.logo_widget)
         self.stack.addWidget(self.video_container)
@@ -83,12 +103,85 @@ class HardPlayerWindow(QMainWindow):
             log_handler=custom_mpv_logger
         )
 
+        # Initialize Loop Status
+        self.loop_enabled = False
+        self.player['loop-file'] = 'no'
+        self.controls.set_repeat_status(False)
+
+        # --- v6 Logic Connections ---
+        self.controls.play_btn.clicked.connect(self.toggle_playback)
+        self.controls.stop_btn.clicked.connect(self.player.stop)
+        self.controls.next_btn.clicked.connect(self.play_next)
+        self.controls.prev_btn.clicked.connect(self.play_previous)
+        self.controls.repeat_btn.clicked.connect(self.toggle_loop)
+        self.controls.slider.sliderMoved.connect(self.seek_video)
+
+        # تايمر لتحديث الواجهة (شريط التقدم والوقت)
+        self.ui_timer = QTimer()
+        self.ui_timer.timeout.connect(self.update_ui_state)
+        self.ui_timer.start(500)
+
         # Start the D-Bus/MPRIS service for system media integration
         self.start_mpris_service()
         
         # Show the startup dialog shortly after the main window appears
         QTimer.singleShot(100, self.show_startup_dialog)
 
+    # --- v6 Control Methods ---
+    def toggle_playback(self):
+        """Toggles play/pause state."""
+        self.player.pause = not self.player.pause
+
+    def toggle_loop(self):
+        """Toggles file looping and updates UI button color."""
+        self.loop_enabled = not self.loop_enabled
+        if self.loop_enabled:
+            self.player['loop-file'] = 'inf'
+            self.controls.set_repeat_status(True)
+            print("[*] 🔁 Loop Mode: ENABLED (Video will restart)")
+        else:
+            self.player['loop-file'] = 'no'
+            self.controls.set_repeat_status(False)
+            print("[*] 🔁 Loop Mode: DISABLED")
+
+    def seek_video(self, position):
+        """Seeks to a specific position in the video."""
+        self.player.time_pos = position
+
+    def update_ui_state(self):
+        """Updates the progress slider and time label."""
+        if self.player.time_pos is not None:
+            self.controls.slider.setEnabled(True)
+            duration = self.player.duration or 0
+            current = self.player.time_pos
+            
+            # تحديث السلايدر
+            self.controls.slider.setMaximum(int(duration))
+            self.controls.slider.setValue(int(current))
+            
+            # تحديث الوقت النصي (01:33/50:54)
+            time_str = f"{self.format_time(current)}/{self.format_time(duration)}"
+            self.controls.time_label.setText(time_str)
+            
+            # تحديث أيقونة الزر ولونها بناءً على الثيم
+            if self.player.pause:
+                self.controls.play_btn.setText("▶")
+                self.controls.play_btn.setStyleSheet("color: #cdd6f4; background-color: #313244;")
+            else:
+                self.controls.play_btn.setText("⏸")
+                # Highlight active play button with Catppuccin Blue
+                self.controls.play_btn.setStyleSheet("color: #89b4fa; background-color: #313244;")
+        else:
+            self.controls.slider.setEnabled(False)
+            self.controls.time_label.setText("--:--/--:--")
+
+    def format_time(self, seconds):
+        """Helper to format seconds into MM:SS."""
+        if seconds is None: return "00:00"
+        mins, secs = divmod(int(seconds), 60)
+        return f"{mins:02d}:{secs:02d}"
+
+    # --- Original Logic Preserved ---
     def start_mpris_service(self):
         """Initializes the MPRIS service in a separate background thread."""
         def loop_runner():
