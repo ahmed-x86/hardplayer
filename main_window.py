@@ -129,6 +129,9 @@ class HardPlayerWindow(QMainWindow):
         self.controls.repeat_btn.clicked.connect(self.toggle_loop)
         self.controls.slider.sliderMoved.connect(self.seek_video)
 
+        # المتغير ده هيشتغل كقفل لمنع التايمر من التدخل وقت استخدام الكيبورد
+        self._keyboard_seeking = False
+
         # تايمر لتحديث الواجهة (شريط التقدم والوقت)
         self.ui_timer = QTimer()
         self.ui_timer.timeout.connect(self.update_ui_state)
@@ -174,8 +177,8 @@ class HardPlayerWindow(QMainWindow):
             duration = self.player.duration or 0
             current = self.player.time_pos
             
-            # تحديث السلايدر - التعديل: لا يتم التحديث إذا كان المستخدم يسحب الشريط يدوياً لمنع القفز
-            if not self.controls.slider.isSliderDown():
+            # تحديث السلايدر - التعديل: لا يتم التحديث إذا كان المستخدم يسحب الشريط يدوياً أو يقدم بالكيبورد
+            if not self.controls.slider.isSliderDown() and not getattr(self, '_keyboard_seeking', False):
                 self.controls.slider.setMaximum(int(duration))
                 self.controls.slider.setValue(int(current))
             
@@ -212,14 +215,20 @@ class HardPlayerWindow(QMainWindow):
 
     def play_next(self):
         """Plays the next media file in the playlist directory."""
-        if self.playlist and self.current_index < len(self.playlist) - 1:
-            self.current_index += 1
+        if self.playlist:
+            if self.current_index < len(self.playlist) - 1:
+                self.current_index += 1
+            else:
+                self.current_index = 0 # العودة لأول فيديو إذا وصلنا للنهاية
             self.player.play(self.playlist[self.current_index])
 
     def play_previous(self):
         """Plays the previous media file in the playlist directory."""
-        if self.playlist and self.current_index > 0:
-            self.current_index -= 1 # تم تعديلها لتكون تناقصية (كانت تزايدية بالخطأ في النسخة السابقة)
+        if self.playlist:
+            if self.current_index > 0:
+                self.current_index -= 1
+            else:
+                self.current_index = len(self.playlist) - 1 # الانتقال لآخر فيديو إذا كنا في البداية
             self.player.play(self.playlist[self.current_index])
 
     def scan_folder(self, current_file):
@@ -244,16 +253,31 @@ class HardPlayerWindow(QMainWindow):
         elif event.key() == Qt.Key.Key_I:
             # Press 'I' to show FFmpeg system information
             self.show_info_dialog()
-        # إضافة دعم مفاتيح الأسهم للتقديم والتأخير
+        # إضافة دعم مفاتيح الأسهم للتقديم والتأخير باستخدام seek النيتيف
         elif event.key() == Qt.Key.Key_Left:
-            # رجوع 5 ثواني
-            self.player.time_pos = max(0, (self.player.time_pos or 0) - 5)
+            self._keyboard_seeking = True
+            self.player.seek(-5) 
+            QTimer.singleShot(800, self._reset_seek_flag) # فك القفل بعد 800 مللي ثانية
         elif event.key() == Qt.Key.Key_Right:
-            # تقديم 5 ثواني
-            duration = self.player.duration or 0
-            self.player.time_pos = min(duration, (self.player.time_pos or 0) + 5)
+            self._keyboard_seeking = True
+            self.player.seek(5)
+            QTimer.singleShot(800, self._reset_seek_flag)
+            
+        # --- التعديل هنا: إضافة دعم أزرار الميديا الخاصة بالكيبورد مع F7 و F8 و F9 كبدائل ---
+        elif event.key() in (Qt.Key.Key_MediaNext, Qt.Key.Key_F9):
+            self.play_next()
+        elif event.key() in (Qt.Key.Key_MediaPrevious, Qt.Key.Key_F7):
+            self.play_previous()
+        elif event.key() in (Qt.Key.Key_MediaPlay, Qt.Key.Key_MediaTogglePlayPause, Qt.Key.Key_F8):
+            self.toggle_playback()
+        elif event.key() == Qt.Key.Key_MediaStop:
+            self.stop_playback()
             
         super().keyPressEvent(event)
+
+    def _reset_seek_flag(self):
+        """Releases the UI lock after keyboard seeking."""
+        self._keyboard_seeking = False
 
     def show_startup_dialog(self):
         """Displays the startup dialog for selecting media."""
