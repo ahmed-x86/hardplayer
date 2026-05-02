@@ -9,6 +9,19 @@ from PyQt6.QtGui import QFont
 # Importing the text color from our configuration
 from config import TEXT, BASE
 
+class ClickableSlider(QSlider):
+    """
+    Custom QSlider that jumps to the position where the user clicks.
+    """
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            # حساب القيمة النسبية بناءً على إحداثيات الضغطة في عرض السلايدر
+            val = self.minimum() + ((self.maximum() - self.minimum()) * event.position().x()) / self.width()
+            self.setValue(int(val))
+            # إرسال إشارة sliderMoved يدوياً ليقوم المشغل بعمل Seek فوراً
+            self.sliderMoved.emit(int(val))
+        super().mousePressEvent(event)
+
 class AspectRatioContainer(QWidget):
     """
     A container widget that maintains a specific aspect ratio (16:9 by default)
@@ -76,7 +89,6 @@ class InfoDialog(QDialog):
                 ["ffmpeg", "-version"],
                 capture_output=True, text=True, check=True
             )
-            # Get only the first two lines of the output for a clean display
             lines = result.stdout.strip().split('\n')[:2]
             self.info_text.setText("\n".join(lines))
         except FileNotFoundError:
@@ -103,7 +115,6 @@ class StartupDialog(QDialog):
         layout.addWidget(self.lbl)
         
         self.browse_btn = QPushButton("📁 Browse Local Video")
-        # Connect to the parent window's logic for browsing
         self.browse_btn.clicked.connect(self.parent().browse_video)
         self.browse_btn.clicked.connect(self.accept)
         layout.addWidget(self.browse_btn)
@@ -122,7 +133,6 @@ class StartupDialog(QDialog):
     def play_url(self):
         url = self.yt_input.text().strip()
         if url:
-            # Connect to the parent window's logic for playing YouTube URLs
             self.parent().play_youtube(url)
             self.accept()
 
@@ -131,7 +141,6 @@ class StartupDialog(QDialog):
 class PlayerControlBar(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
-        # تم استخدام لون Crust (#11111b) للخلفية ليتناسق مع الفيديو
         self.setStyleSheet("""
             QFrame {
                 background-color: #11111b; 
@@ -181,7 +190,8 @@ class PlayerControlBar(QFrame):
         self.play_btn.setFixedWidth(55)
         self.repeat_btn.setFixedWidth(75)
 
-        self.slider = QSlider(Qt.Orientation.Horizontal)
+        # تم تغيير QSlider التقليدي إلى ClickableSlider المطور
+        self.slider = ClickableSlider(Qt.Orientation.Horizontal)
         self.slider.setCursor(Qt.CursorShape.PointingHandCursor)
         self.slider.setEnabled(False)
 
