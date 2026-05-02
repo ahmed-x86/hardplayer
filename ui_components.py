@@ -115,7 +115,7 @@ class StartupDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setSpacing(15)
         
-        self.lbl = QLabel("Select a local video file or enter a YouTube URL:")
+        self.lbl = QLabel("Select a local video file or search YouTube:")
         self.lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.lbl)
         
@@ -126,9 +126,9 @@ class StartupDialog(QDialog):
 
         yt_layout = QHBoxLayout()
         self.yt_input = QLineEdit()
-        self.yt_input.setPlaceholderText("https://youtube.com/...")
+        self.yt_input.setPlaceholderText("https://youtube.com/... or Search query")
         
-        self.yt_btn = QPushButton("▶ Play URL")
+        self.yt_btn = QPushButton("▶ Play / Search")
         self.yt_btn.clicked.connect(self.play_url)
         
         yt_layout.addWidget(self.yt_input)
@@ -136,9 +136,13 @@ class StartupDialog(QDialog):
         layout.addLayout(yt_layout)
 
     def play_url(self):
-        url = self.yt_input.text().strip()
-        if url:
-            self.parent().play_youtube(url)
+        query = self.yt_input.text().strip()
+        if query:
+            # التعديل هنا: لو الرابط مباشر يشغله، لو كلام عادي يفتح نافذة البحث
+            if query.startswith("http://") or query.startswith("https://"):
+                self.parent().play_youtube(query)
+            else:
+                self.parent().search_youtube_and_play(query)
             self.accept()
 
 # --- v6 PlayerControlBar with Dark Theme Style ---
