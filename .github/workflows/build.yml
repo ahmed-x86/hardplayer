@@ -1,9 +1,9 @@
-name: HardPlayer Evolution (v3.0.0)
+name: HardPlayer Evolution (v4.0.0)
 
 on:
   push:
     tags:
-      - 'v3*'
+      - 'v4*'
 
 permissions:
   contents: write
@@ -22,23 +22,25 @@ jobs:
         with:
           python-version: '3.10'
 
+      - name: Install OS Packaging Tools & D-Bus Dependencies
+        run: |
+          sudo apt-get update
+          # Added D-Bus and GLib development packages to ensure successful build of MPRIS2 libraries
+          sudo apt-get install -y ruby ruby-dev rubygems build-essential rpm libarchive-tools zstd libdbus-1-dev libgirepository1.0-dev libcairo2-dev
+          sudo gem install --no-document fpm
+
       - name: Install Build Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install PyQt6 python-mpv nuitka zstandard ordered-set
-
-      - name: Install OS Packaging Tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ruby ruby-dev rubygems build-essential rpm libarchive-tools zstd
-          sudo gem install --no-document fpm
+          # Added dbus-python and PyGObject to support KDE Connect integration
+          pip install PyQt6 python-mpv nuitka zstandard ordered-set dbus-python PyGObject
 
       - name: Build with Nuitka (Standalone Optimization)
         run: |
-          # بناء التطبيق مع تفعيل دعم PyQt6 وتجاهل الملحقات غير الضرورية لتقليل الحجم
+          # Build the application with PyQt6 plugin enabled and assume-yes for downloads
           python -m nuitka --standalone --remove-output --enable-plugin=pyqt6 --assume-yes-for-downloads hardplayer.py
           
-          # تنظيف مكتبات التشفير المدمجة لضمان التوافق مع OpenSSL الخاص بنظام المستخدم (Preventing Segfaults)
+          # Clean up bundled crypto libraries to ensure compatibility with the host system's OpenSSL (Preventing Segfaults)
           rm -f hardplayer.dist/libssl.so* hardplayer.dist/libcrypto.so*
           
           mkdir -p package_root/opt/hardplayer
@@ -46,7 +48,7 @@ jobs:
           cp -r hardplayer.dist/* package_root/opt/hardplayer/
           mv package_root/opt/hardplayer/hardplayer.bin package_root/opt/hardplayer/hardplayer-bin
           
-          # إنشاء سكربت التشغيل (Wrapper) لضبط مسارات المكتبات
+          # Create a wrapper script to set library paths dynamically
           echo '#!/bin/bash' > package_root/usr/bin/hardplayer
           echo 'export LD_LIBRARY_PATH=/opt/hardplayer:$LD_LIBRARY_PATH' >> package_root/usr/bin/hardplayer
           echo 'export QT_PLUGIN_PATH=/opt/hardplayer/PyQt6/Qt6/plugins' >> package_root/usr/bin/hardplayer
@@ -55,25 +57,26 @@ jobs:
 
       - name: Generate Production Packages (DEB, RPM, Pacman)
         run: |
-          # الوصف الجديد للحزمة يعكس ميزة اليوتيوب
-          DESC="HardPlayer v3: High-performance Media Player with Advanced YouTube Quality Selection and GPU Hardware Acceleration support."
+          # The package description reflects the new MPRIS2 system integration feature
+          DESC="HardPlayer v4: High-performance Media Player with Full MPRIS2 Support (KDE Connect) and YouTube Quality Selection."
           
-          # إنشاء الحزم مع إضافة الاعتمادات الأساسية لليوتيوب (mpv, yt-dlp)
-          fpm -s dir -t deb -n hardplayer -v 3.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d openssl -C package_root .
-          fpm -s dir -t rpm -n hardplayer -v 3.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d openssl -C package_root .
-          fpm -s dir -t pacman -n hardplayer -v 3.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d openssl -C package_root .
+          # Generate packages
+          fpm -s dir -t deb -n hardplayer -v 4.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d openssl -C package_root .
+          fpm -s dir -t rpm -n hardplayer -v 4.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d openssl -C package_root .
+          fpm -s dir -t pacman -n hardplayer -v 4.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d openssl -C package_root .
 
       - name: Deploy Release Assets
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/v3')
+        if: startsWith(github.ref, 'refs/tags/v4')
         with:
-          name: HardPlayer v3.0.0 - YouTube Quality Master 🎬
+          name: HardPlayer v4.0.0 - The MPRIS Update (KDE Connect) 📱🎬
           body: |
-            ### ماذا الجديد في الإصدار الثالث؟
-            * **YouTube Quality Selector**: التحكم الكامل في اختيار الجودة (Format ID) قبل التشغيل.
-            * **Advanced Decoding Logic**: تحسين واجهة اختيار العتاد (GPU/CPU) لضمان أعلى أداء.
-            * **Arch Linux Optimized**: بناء مستقر يدعم X11 و Wayland (عبر XCB).
-            * **Fixes**: حل مشكلة تداخل النوافذ في محرك MPV.
+            ### What's New in v4.0.0?
+            * **Full System Integration (MPRIS2)**: Control the player using `playerctl` and keyboard media keys.
+            * **KDE Connect Support**: Play, Pause, and Seek directly from your phone or smartwatch.
+            * **Rich Metadata Display**: Video titles and YouTube thumbnails now appear in system media notifications.
+            * **Real-time Synchronization**: Instant updates for playback status and progress bar across the OS.
+            * Plus existing features: High-performance Hardware Decoding and advanced YouTube quality selection.
           files: |
             *.deb
             *.rpm
