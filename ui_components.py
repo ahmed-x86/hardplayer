@@ -13,6 +13,11 @@ class ClickableSlider(QSlider):
     """
     Custom QSlider that jumps to the position where the user clicks.
     """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # منع السلايدر نهائياً من سرقة الكيبورد عشان الأسهم تشتغل لتقديم الفيديو
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             # حساب القيمة النسبية بناءً على إحداثيات الضغطة في عرض السلايدر
@@ -141,8 +146,13 @@ class StartupDialog(QDialog):
 class PlayerControlBar(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
+        
+        # 1. إعطاء اسم فريد للشريط الرئيسي علشان التنسيق ما يتسربش للعناصر الداخلية
+        self.setObjectName("MainControlBar")
+        
+        # 2. حصر التنسيق على QFrame#MainControlBar فقط
         self.setStyleSheet("""
-            QFrame {
+            QFrame#MainControlBar {
                 background-color: #11111b; 
                 border-top: 2px solid #313244;
             }
@@ -178,6 +188,9 @@ class PlayerControlBar(QFrame):
             QLabel {
                 color: #cdd6f4; 
                 font-family: 'JetBrains Mono', 'monospace';
+                /* تأكيد إزالة أي حدود أو خلفيات من الـ Label */
+                border: none; 
+                background: transparent;
             }
         """)
         self.setFixedHeight(70)
@@ -190,20 +203,28 @@ class PlayerControlBar(QFrame):
         self.play_btn.setFixedWidth(55)
         self.repeat_btn.setFixedWidth(75)
 
+        # منع أزرار التشغيل والتكرار من سرقة التركيز
+        self.play_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.repeat_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+
         # تم تغيير QSlider التقليدي إلى ClickableSlider المطور
         self.slider = ClickableSlider(Qt.Orientation.Horizontal)
         self.slider.setCursor(Qt.CursorShape.PointingHandCursor)
         self.slider.setEnabled(False)
 
-        self.time_label = QLabel("00:00/00:00")
-        self.time_label.setFixedWidth(130)
+        # زيادة العرض لتنسيق المسافات والساعات الجديد
+        self.time_label = QLabel("00:00 / 00:00")
+        self.time_label.setFixedWidth(160)
         self.time_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.stop_btn = QPushButton("⏹")
         self.prev_btn = QPushButton("⏮")
         self.next_btn = QPushButton("⏭")
+        
+        # منع باقي الأزرار من سرقة التركيز
         for btn in [self.stop_btn, self.prev_btn, self.next_btn]:
             btn.setFixedWidth(55)
+            btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
         layout.addWidget(self.play_btn)
         layout.addWidget(self.repeat_btn)
