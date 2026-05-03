@@ -1,9 +1,9 @@
-name: HardPlayer Evolution (v10.0.0)
+name: HardPlayer Evolution (v11.0.0)
 
 on:
   push:
     tags:
-      - 'v10*'
+      - 'v11*'
 
 permissions:
   contents: write
@@ -35,7 +35,7 @@ jobs:
 
       - name: Build with Nuitka & Setup Desktop Entry
         run: |
-          # بناء البرنامج مع التأكد من تضمين كافة الموديولات الجديدة (UI components & Logic)
+          # بناء البرنامج مع التأكد من تضمين كافة الموديولات الجديدة (UI components, Logic & CLI)
           python -m nuitka --standalone --remove-output --enable-plugin=pyqt6 --follow-imports --assume-yes-for-downloads hardplayer.py
           
           # حذف مكتبات التشفير لضمان التوافقية مع توزيعات Linux المختلفة وتجنب Segfault
@@ -70,25 +70,26 @@ jobs:
 
       - name: Generate Production Packages (DEB, RPM, Pacman)
         run: |
-          DESC="HardPlayer v10: Advanced MPRIS integration with rich media metadata and native cover art / thumbnail support for desktop environments."
+          DESC="HardPlayer v11: Power User CLI Update featuring direct terminal control, UI-bypass Fast Launch, and advanced hardware decoding overrides."
           
-          # توليد الحزم بالإصدار الجديد 10.0.0
-          fpm -s dir -t deb -n hardplayer -v 10.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
-          fpm -s dir -t rpm -n hardplayer -v 10.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
-          fpm -s dir -t pacman -n hardplayer -v 10.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
+          # توليد الحزم بالإصدار الجديد 11.0.0
+          fpm -s dir -t deb -n hardplayer -v 11.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
+          fpm -s dir -t rpm -n hardplayer -v 11.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
+          fpm -s dir -t pacman -n hardplayer -v 11.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
 
       - name: Deploy Release Assets
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/v10')
+        if: startsWith(github.ref, 'refs/tags/v11')
         with:
-          name: HardPlayer v10.0.0 - MPRIS Art & Desktop Integration 🖼️✨
+          name: HardPlayer v11.0.0 - Power User CLI & Fast Launch 🚀💻
           body: |
-            ### What's New in v10.0.0?
-            * **Rich MPRIS Metadata:** Full integration with Linux desktop environments (Waybar, SwayNC, KDE, GNOME), now including **Cover Art / Thumbnails** for both local and online media.
-            * **Local Video Thumbnails:** Automatically extracts a high-quality frame from local videos using a lightning-fast `ffmpeg` seek strategy, without freezing the player.
-            * **Smart Thumbnail Caching:** Extracted local thumbnails are hashed and seamlessly cached to `~/.cache/hardplayer/thumbnails`, ensuring zero CPU overhead on replay.
-            * **YouTube Artwork Integration:** Directly fetches and displays high-quality YouTube thumbnails in your system's media widget when playing online content.
-            * Includes all previous v9 features (Native YouTube Search, fast parsing via `yt-dlp`, and Catppuccin-themed visual cards).
+            ### What's New in v11.0.0?
+            * **Power User CLI:** Full terminal control! Launch media, search YouTube, and force hardware decoding directly from your command line.
+            * **Fast Launch (UI Bypass):** Skip the startup and decoding dialogs entirely. Use `hardplayer <url/path> -device old_nvidia -quality 1080p` to instantly blast media straight to the MPV engine.
+            * **Direct YouTube Search:** Type `hardplayer -search "query"` to jump straight into the native search interface without opening the initial dialog.
+            * **Audio-Only Mode:** Save RAM and bandwidth by playing YouTube videos as music/podcasts using the `-quality audio` flag.
+            * **Advanced HWDEC Mapping:** New custom device map including `-device old_nvidia` (maps to `cuda-copy`) for perfect hardware acceleration compatibility with older GPUs.
+            * **Modular Architecture:** Command-line parsing is now elegantly separated into its own `cli_parser.py` module, keeping the core KISS-compliant.
           files: |
             *.deb
             *.rpm
