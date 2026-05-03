@@ -4,11 +4,14 @@ import os
 import glob
 import threading
 import mpv
+import json
+import subprocess
+import re
 from pathlib import Path
 
 from PyQt6.QtWidgets import (QMainWindow, QStackedWidget, QWidget, QVBoxLayout, 
                              QHBoxLayout, QLabel, QFileDialog, QDialog)
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal
 from PyQt6.QtGui import QFont, QPixmap
 
 # --- Import separated modular components ---
@@ -22,7 +25,6 @@ from styles import AppStyles
 from config import BASE
 from mpris_feature import HardPlayerMPRIS
 from hw_decoding import DecodingDialog, DEVICE_MAP
-# التعديل هنا: استيراد YouTubeSimpleQualityDialog
 from youtube_feature import YouTubeSimpleQualityDialog, YouTubeQualityDialog, YouTubeSearchDialog
 from ui_components import InfoDialog, StartupDialog
 
@@ -30,6 +32,52 @@ try:
     from gi.repository import GLib
 except ImportError:
     pass
+
+# --- New: YouTube Playlist Fetcher Thread ---
+class YouTubePlaylistFetcher(QThread):
+    """
+    خيط (Thread) يعمل في الخلفية لجلب جميع الفيديوهات داخل قائمة تشغيل يوتيوب
+    باستخدام yt-dlp بدون تجميد واجهة المستخدم.
+    """
+    playlist_fetched = pyqtSignal(list, str) # يرسل (قائمة الروابط، الرابط الأصلي)
+
+    def __init__(self, url):
+        super().__init__()
+        self.url = url
+
+    def run(self):
+        try:
+            cmd = [
+                "yt-dlp",
+                "--flat-playlist",
+                "--dump-json",
+                "--ignore-errors",
+                "--no-warnings",
+                self.url
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            lines = result.stdout.strip().split('\n')
+            urls = []
+            
+            for line in lines:
+                if not line.strip(): continue
+                try:
+                    data = json.loads(line)
+                    # استخراج رابط الفيديو من القائمة
+                    vid_url = data.get('url') or data.get('webpage_url')
+                    if not vid_url and data.get('id'):
+                        vid_url = f"https://www.youtube.com/watch?v={data['id']}"
+                        
+                    if vid_url:
+                        urls.append(vid_url)
+                except Exception:
+                    pass
+            
+            if urls:
+                self.playlist_fetched.emit(urls, self.url)
+                
+        except Exception as e:
+            print(f"[*] ⚠️ Playlist fetch error: {e}")
 
 
 class HardPlayerWindow(QMainWindow):
@@ -209,10 +257,13 @@ class HardPlayerWindow(QMainWindow):
     def play_from_sidebar(self, path):
         print(f"[*] 🔄 Switching to: {path}")
         self.player.stop()
-        if path.startswith("http"):
-            self.play_youtube(path)
-        else:
-            self.ask_for_decoding_and_play(path)
+        
+        # تحديث الفهرس الحالي قبل التشغيل وعدم مسح القائمة
+        if path in self.playlist:
+            self.current_index = self.playlist.index(path)
+            
+        # نمرر reset_playlist=False لكي لا تمسح القائمة الحالية
+        self.play_youtube(path, reset_playlist=False)
     
     def browse_video(self):
         """Opens file dialog for video selection."""
@@ -332,29 +383,55 @@ class HardPlayerWindow(QMainWindow):
         if search_dialog.exec() == QDialog.DialogCode.Accepted and search_dialog.selected_url:
             self.play_youtube(search_dialog.selected_url)
 
-    def play_youtube(self, yt_url):
+    def play_youtube(self, yt_url, reset_playlist=True):
         format_code = None
         selected_hwdec = "no"
 
-        # 1. Quality configuration (التعديل تم هنا لربط الشاشتين ببعض)
+        clean_url_for_quality = yt_url
+        
+        # --- التعديل: استخراج أول فيديو من القائمة الخالصة بسرعة ---
+        if "list=" in yt_url or "playlist?" in yt_url:
+            match = re.search(r'v=([^&]+)', yt_url)
+            if match:
+                clean_url_for_quality = f"https://www.youtube.com/watch?v={match.group(1)}"
+            else:
+                print("[*] 🔍 Pure playlist detected. Fetching the FIRST video for quality selection...")
+                try:
+                    cmd = [
+                        "yt-dlp", 
+                        "--flat-playlist", 
+                        "--playlist-items", "1", 
+                        "--dump-json", 
+                        yt_url
+                    ]
+                    res = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+                    data = json.loads(res.stdout.strip().split('\n')[0])
+                    if data.get('id'):
+                        clean_url_for_quality = f"https://www.youtube.com/watch?v={data['id']}"
+                except Exception as e:
+                    print(f"[*] ⚠️ Failed to fetch first video: {e}")
+                    pass
+
+        # 1. Quality configuration
         if self.cli_quality and self.cli_quality in self.quality_map:
             format_code = self.quality_map[self.cli_quality]
         else:
-            # إظهار الشاشة المبسطة أولاً
-            simple_dialog = YouTubeSimpleQualityDialog(yt_url, self)
+            simple_dialog = YouTubeSimpleQualityDialog(clean_url_for_quality, self)
             if simple_dialog.exec() == QDialog.DialogCode.Accepted:
                 if simple_dialog.format_code == "ADVANCED":
-                    # إذا ضغط المستخدم على Advanced، تظهر الشاشة القديمة (المعقدة)
-                    quality_dialog = YouTubeQualityDialog(yt_url, self)
+                    quality_dialog = YouTubeQualityDialog(clean_url_for_quality, self)
                     if quality_dialog.exec() == QDialog.DialogCode.Accepted:
                         format_code = quality_dialog.format_code
                     else:
-                        return # في حال ألغى المستخدم العملية
+                        return
                 else:
-                    # في حال اختار الجودة من الشاشة المبسطة (مثلاً 1080p أو 720p)
                     format_code = simple_dialog.format_code
             else:
-                return # في حال ألغى المستخدم العملية من الشاشة الأولى
+                return
+
+        # --- إضافة ميزة الـ Fallback ---
+        if format_code and "/" not in format_code and "[" not in format_code:
+            format_code = f"{format_code}/best"
                 
         # 2. Hardware cache injection
         saved_hwdec = self.menu_bar.get_saved_hwdec()
@@ -379,13 +456,46 @@ class HardPlayerWindow(QMainWindow):
         self.player['ytdl-format'] = format_code
         self.player['vid'] = 'no' if self.cli_quality == 'audio' else 'auto'
         
-        self.playlist = [yt_url]
-        self.current_index = 0
-        self.playlist_panel.set_playlist_data(self.playlist)
+        # --- التعديل: تحديث القائمة (فقط إذا كان طلباً جديداً) ---
+        if reset_playlist:
+            if "list=" in yt_url or "playlist?" in yt_url:
+                print("[*] 📜 YouTube Playlist detected. Fetching items in background...")
+                self.playlist = [yt_url]
+                self.current_index = 0
+                self.playlist_panel.set_playlist_data(self.playlist)
+                
+                self.yt_playlist_fetcher = YouTubePlaylistFetcher(yt_url)
+                self.yt_playlist_fetcher.playlist_fetched.connect(self._on_yt_playlist_fetched)
+                self.yt_playlist_fetcher.start()
+            else:
+                self.playlist = [yt_url]
+                self.current_index = 0
+                self.playlist_panel.set_playlist_data(self.playlist)
+        
         self.stack.setCurrentWidget(self.video_surface)
         
         print(f"[*] ▶️  Passing to MPV Engine...\n{'-'*60}\n")
         self.player.play(yt_url)
+
+    def _on_yt_playlist_fetched(self, urls, original_url):
+        """دالة للتعامل مع الفيديوهات المجلوبة من قائمة التشغيل وضبط الفهرس"""
+        if not urls: return
+        print(f"[*] ✅ Fetched {len(urls)} videos from playlist.")
+        self.playlist = urls
+        
+        # محاولة تحديد مكان (index) الفيديو الحالي الذي يشتغل إذا كان الرابط الأصلي يحتوي على v=
+        match = re.search(r'v=([^&]+)', original_url)
+        if match:
+            vid_id = match.group(1)
+            for i, u in enumerate(self.playlist):
+                if vid_id in u:
+                    self.current_index = i
+                    break
+        else:
+            self.current_index = 0
+            
+        # تحديث القائمة الجانبية بالروابط الجديدة
+        self.playlist_panel.set_playlist_data(self.playlist)
 
     def show_startup_dialog(self):
         StartupDialog(self).exec()
