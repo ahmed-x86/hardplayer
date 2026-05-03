@@ -1,23 +1,24 @@
-# 🎬 HardPlayer (v11.0.0) — Power User CLI & Fast Launch 🚀💻
+# 🎬 HardPlayer (v12.0.0) — "Open With" Integration & Power CLI 🚀📁
 
-A lightweight, high-performance modular media player built with **Python**, **PyQt6**, and the **MPV Engine**. Version 11.0.0 transforms HardPlayer into a Power User's dream, introducing a robust Command Line Interface (CLI) that allows you to bypass UI dialogs, force hardware decoding, and search YouTube directly from your terminal, all while maintaining its minimalistic, **Catppuccin Mocha** aesthetic.
+A lightweight, high-performance modular media player built with **Python**, **PyQt6**, and the **MPV Engine**. Version 12.0.0 brings HardPlayer directly to your fingertips with native system-wide "Open With" context menu integration, alongside a robust Command Line Interface (CLI) that allows you to bypass UI dialogs, force hardware decoding, and search YouTube directly from your terminal, all while maintaining its minimalistic, **Catppuccin Mocha** aesthetic.
 
 Built for Linux ricing enthusiasts who demand both beauty and performance. Compiled into a native binary using **Nuitka**.
 
 ![License](https://img.shields.io/badge/License-GPLv3-blue.svg)
 ![Platform](https://img.shields.io/badge/Platform-Linux%20-lightgrey)
-![Version](https://img.shields.io/badge/Version-11.0.0-mauve)
+![Version](https://img.shields.io/badge/Version-12.0.0-mauve)
 ![Theme](https://img.shields.io/badge/Theme-Catppuccin%20Mocha-blue)
 
-## ✨ What's New in v11.0?
+## ✨ What's New in v12.0?
+- **"Open With" Context Menu:** HardPlayer now natively appears in your file manager's right-click menu (Nautilus, Dolphin, Thunar, etc.) for instant, seamless playback of all supported video and audio formats.
 - **Power User CLI:** Full terminal control! Launch media, search YouTube, and force hardware decoding directly from your command line.
 - **Fast Launch (UI Bypass):** Skip the startup and decoding dialogs entirely. Inject your preferences via arguments to instantly blast media straight to the MPV engine.
 - **Advanced HWDEC Mapping:** New custom device map including `-device old_nvidia` (maps to `cuda-copy`) for perfect hardware acceleration compatibility with older GPUs.
 - **Audio-Only Mode:** Save RAM and bandwidth by playing YouTube videos as music/podcasts using the `-quality audio` flag.
-- **Rich MPRIS Metadata (v10 Legacy):** Full integration with Linux desktop environments (Waybar, SwayNC) with **Cover Art / Thumbnails** caching.
+- **Rich MPRIS Metadata:** Full integration with Linux desktop environments (Waybar, SwayNC) with **Cover Art / Thumbnails** caching.
 
-## 💻 CLI Documentation (v11 Power User Mode)
-HardPlayer v11 introduces a powerful terminal interface. You can mix and match flags to bypass UI dialogs entirely.
+## 💻 CLI Documentation (Power User Mode)
+HardPlayer introduces a powerful terminal interface. You can mix and match flags to bypass UI dialogs entirely.
 
 ### Available Flags:
 * `-device [cpu|intel|amd|nvidia|old_nvidia]` : Forces hardware decoding. (`old_nvidia` uses `cuda-copy` for legacy GPU compatibility).
@@ -77,12 +78,12 @@ HardPlayer is and will always be **Linux-exclusive**. It leverages native Linux 
 
 ### Arch Linux (Pacman):
 ```bash
-sudo pacman -U hardplayer-11.0.0.pkg.tar.zst
+sudo pacman -U hardplayer-12.0.0.pkg.tar.zst
 ```
 
 ### Debian/Ubuntu (DEB):
 ```bash
-sudo dpkg -i hardplayer_11.0.0_amd64.deb
+sudo dpkg -i hardplayer_12.0.0_amd64.deb
 ```
 
 ### Development Run:
