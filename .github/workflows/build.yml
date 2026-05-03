@@ -1,17 +1,25 @@
-name: HardPlayer Evolution (v17.0.0)
+name: HardPlayer Evolution (v18.0.0)
 
 on:
   push:
     tags:
-      - 'v17*'
+      - 'v18*'
 
 permissions:
   contents: write
 
 jobs:
   build:
-    name: Build & Package (Linux Multi-Distro)
-    runs-on: ubuntu-latest
+    name: Build & Package (${{ matrix.arch }})
+    # استخدام نظام الماتريكس لبناء النسختين x86 و ARM
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            os: ubuntu-latest
+          - arch: aarch64
+            os: ubuntu-24.04-arm64 # بناء أصلي لمعمارية ARM64
 
     steps:
       - name: Checkout Code
@@ -22,7 +30,7 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install OS Packaging Tools & D-Bus Dependencies
+      - name: Install OS Packaging Tools & Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y ruby ruby-dev rubygems build-essential rpm libarchive-tools zstd libdbus-1-dev libgirepository1.0-dev libcairo2-dev
@@ -35,7 +43,6 @@ jobs:
 
       - name: Build with Nuitka & Setup Desktop Entry
         run: |
-          # Nuitka will automatically follow imports for all new modules (youtube_feature.py, ui_components.py, top_menu.py, etc.)
           python -m nuitka --standalone --remove-output --enable-plugin=pyqt6 --follow-imports --assume-yes-for-downloads hardplayer.py
           
           rm -f hardplayer.dist/libssl.so* hardplayer.dist/libcrypto.so*
@@ -45,7 +52,6 @@ jobs:
           cp -r hardplayer.dist/* package_root/opt/hardplayer/
           mv package_root/opt/hardplayer/hardplayer.bin package_root/opt/hardplayer/hardplayer-bin
           
-          # Copy icon to ensure it appears inside the app
           cp icon_in_app.png package_root/opt/hardplayer/
           
           echo '#!/bin/bash' > package_root/usr/bin/hardplayer
@@ -61,7 +67,7 @@ jobs:
           cat <<EOF > package_root/usr/share/applications/hardplayer.desktop
           [Desktop Entry]
           Name=HardPlayer
-          Comment=Pro Media Player with Fast YouTube Downloader
+          Comment=Pro Media Player with Optimized YouTube Playlist Support
           Exec=hardplayer %U
           Icon=hardplayer
           Terminal=false
@@ -73,27 +79,42 @@ jobs:
 
       - name: Generate Production Packages (DEB, RPM, Pacman)
         run: |
-          DESC="HardPlayer v17: Introducing Smart Formats & Unified Advanced UI. Set default YouTube extensions with intelligent fallbacks and enjoy a seamless downloading experience."
+          DESC="HardPlayer v18: Optimized YouTube Playlist streaming & faster loading. Support for Multi-Arch (x86_64 & AArch64)."
+          VER="18.0.0"
+          ARCH="${{ matrix.arch }}"
           
-          # Added aria2 as a dependency for high-speed downloads
-          fpm -s dir -t deb -n hardplayer -v 17.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d aria2 -C package_root .
-          fpm -s dir -t rpm -n hardplayer -v 17.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d aria2 -C package_root .
-          fpm -s dir -t pacman -n hardplayer -v 17.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d aria2 -C package_root .
+          # بناء الحزم مع تحديد المعمارية ديناميكياً
+          fpm -s dir -t deb -n hardplayer -v $VER -a $ARCH --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d aria2 -C package_root .
+          fpm -s dir -t rpm -n hardplayer -v $VER -a $ARCH --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d aria2 -C package_root .
+          fpm -s dir -t pacman -n hardplayer -v $VER -a $ARCH --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d aria2 -C package_root .
+
+      - name: Rename Pacman files for consistency
+        run: |
+          # إصلاح اسم ملف pacman لكي يظهر بشكل واضح في المرفقات
+          for f in *.zst; do mv "$f" "hardplayer-18.0.0-1-${{ matrix.arch }}.pkg.tar.zst"; done
 
       - name: Deploy Release Assets
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/v17')
+        if: startsWith(github.ref, 'refs/tags/v18')
         with:
-          name: HardPlayer v17.0.0 - Smart Formats & Unified UI 🚀
+          name: HardPlayer v18.0.0 - YouTube Playlists & ARM Support 🚀
           body: |
-            ### What's New in v17.0.0?
-            * **Preferred YouTube Extension:** Added a new Top Menu option to set your default YouTube format (`mp4`, `mkv`, `webm`). HardPlayer remembers your choice via a local cache and applies it automatically to both streaming and downloading!
-            * **Smart Format Fallback:** If your preferred extension isn't available for a specific resolution (e.g., requesting 4K mp4), the UI intelligently detects available formats and displays a fallback message like `(webm because not found mp4)` right on the quality button.
-            * **Unified Advanced Menu:** The advanced download dialog has been completely overhauled. It now uses the same beautiful, information-rich table UI as the streaming advanced menu, featuring a seamless "Download Mode".
+            ## 📥 Download Links
+            | Architecture | Ubuntu / Debian | Fedora / Suse | Arch Linux |
+            | :--- | :--- | :--- | :--- |
+            | **x86-64 (64-bit)** | [Download DEB](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer_18.0.0_x86_64.deb) | [Download RPM](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-18.0.0-1.x86_64.rpm) | [Download Pacman](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-18.0.0-1-x86_64.pkg.tar.zst) |
+            | **AArch64 (ARM64)** | [Download DEB](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer_18.0.0_aarch64.deb) | [Download RPM](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-18.0.0-1.aarch64.rpm) | [Download Pacman](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-18.0.0-1-aarch64.pkg.tar.zst) |
+
+            ---
             
-            **Technical Improvements:**
-            * Optimized `yt-dlp` JSON extraction to dynamically parse available extensions per resolution.
-            * Centralized UI components to respect the DRY (Don't Repeat Yourself) principle, making the codebase cleaner and faster.
+            ### What's New in v18.0.0?
+            * **YouTube Playlist Optimization:** تحسين جذري في تشغيل قوائم التشغيل. الآن يتم جلب بيانات أول فيديو فوراً لبدء التشغيل بدون انتظار تحميل القائمة كاملة.
+            * **Multi-Arch Support:** لأول مرة، HardPlayer متاح رسمياً لمعماريات **AArch64** ليعمل بكفاءة على أجهزة ARM (مثل Raspberry Pi أو أجهزة اللابتوب بنظام ARM).
+            * **Faster Loading Speed:** تم تحسين استخراج بيانات `yt-dlp` لتقليل زمن الانتظار عند فتح روابط يوتيوب.
+            * **Bug Fixes:** إصلاح مشكلة اختفاء القائمة الجانبية عند اختيار فيديو من قائمة تشغيل.
+
+            **Technical Dependencies:**
+            * يحتاج البرنامج إلى وجود `mpv` و `ffmpeg` و `aria2` مثبتة على النظام لضمان أفضل أداء وتحميل سريع.
           files: |
             *.deb
             *.rpm
