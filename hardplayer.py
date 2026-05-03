@@ -18,10 +18,15 @@ from PyQt6.QtWidgets import QApplication
 # Import the stylesheet from our configuration file
 from config import stylesheet
 
+from cli_parser import parse_cli_args
+
 # Import the main window class from our main module
 from main_window import HardPlayerWindow
 
 def main():
+    
+    args = parse_cli_args()
+
     app = QApplication(sys.argv)
     
     # Set the locale to 'C' (standard C locale) to prevent MPV from failing
@@ -32,7 +37,13 @@ def main():
     app.setStyleSheet(stylesheet)
     
     # Initialize and show the main media player window
-    window = HardPlayerWindow()
+    # نقوم بتمرير المتغيرات القادمة من التيرمنال إلى النافذة الرئيسية
+    window = HardPlayerWindow(
+        cli_path=args.path, 
+        cli_device=args.device, 
+        cli_search=args.search,
+        cli_quality=args.quality
+    )
     window.show()
     
     # Start the application's event loop
