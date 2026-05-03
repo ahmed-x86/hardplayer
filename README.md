@@ -1,4 +1,4 @@
-# 🎬 HardPlayer (18.0.0) — YouTube Playlists & ARM Support 🚀
+# 🎬 HardPlayer (19.0.0) — Advanced YouTube Downloader & Extras 🚀
 
 HardPlayer is a lightweight, high-performance modular media player built with **Python**, **PyQt6**, and the **MPV Engine**. It combines native system integration with a sleek **Catppuccin Mocha** aesthetic and a pro-grade YouTube acquisition engine.
 
@@ -6,18 +6,30 @@ Developed by **Ahmed (ahmed-x86)**, this player follows the "KISS" philosophy, s
 
 ---
 
+![License](https://img.shields.io/badge/License-GPLv3-blue.svg)
+![Platform](https://img.shields.io/badge/Platform-Linux%20-lightgrey)
+![Version](https://img.shields.io/badge/Version-19.0.0-mauve)
+![Theme](https://img.shields.io/badge/Theme-Catppuccin%20Mocha-blue)
+
+---
+
 ## 📥 Download Links (Release Assets)
 
 | Architecture | Ubuntu / Debian (DEB) | Fedora / Suse (RPM) | Arch Linux (Pacman) |
 | :--- | :--- | :--- | :--- |
-| **x86-64 (64-bit)** | [Download DEB](https://github.com/ahmed-x86/hardplayer/releases/download/v18.0.0/hardplayer_18.0.0_x86_64.deb) | [Download RPM](https://github.com/ahmed-x86/hardplayer/releases/download/v18.0.0/hardplayer-18.0.0-1.x86_64.rpm) | [Download Pacman](https://github.com/ahmed-x86/hardplayer/releases/download/v18.0.0/hardplayer-18.0.0-1-x86_64.pkg.tar.zst) |
-| **AArch64 (ARM64)** | [Download DEB](https://github.com/ahmed-x86/hardplayer/releases/download/v18.0.0/hardplayer_18.0.0_aarch64.deb) | [Download RPM](https://github.com/ahmed-x86/hardplayer/releases/download/v18.0.0/hardplayer-18.0.0-1.aarch64.rpm) | [Download Pacman](https://github.com/ahmed-x86/hardplayer/releases/download/v18.0.0/hardplayer-18.0.0-1-aarch64.pkg.tar.zst) |
+| **x86-64 (64-bit)** | [Download DEB](https://github.com/ahmed-x86/hardplayer/releases/download/v19.0.0/hardplayer_19.0.0_x86_64.deb) | [Download RPM](https://github.com/ahmed-x86/hardplayer/releases/download/v19.0.0/hardplayer-19.0.0-1.x86_64.rpm) | [Download Pacman](https://github.com/ahmed-x86/hardplayer/releases/download/v19.0.0/hardplayer-19.0.0-1-x86_64.pkg.tar.zst) |
+
+---
+
+## ✨ What's New in v19.0.0?
+* **Advanced YouTube Downloader**: The download system has been upgraded into a comprehensive tool. You can now download subtitles, thumbnails, embed chapters, and save video metadata (.txt), no longer limited to just downloading the video!
+* **Smart Subtitle Fetching**: An intelligent system to fetch subtitles (English and Arabic by default) with a built-in anti-ban mechanism (`sleep_interval`) to avoid YouTube IP blocks (Error 429).
+* **Enhanced Download UI**: A custom, interactive UI featuring elegant Catppuccin Mauve toggle switches, informational dialogs, and a robust cancellation system with safe cleanup options for incomplete files.
 
 ---
 
 ## ✨ What's New in v18.0?
 * **YouTube Playlist Optimization**: Radical improvement in playlist handling. The player now fetches the first video's data immediately to start playback without waiting for the entire playlist to load.
-* **Multi-Arch Support**: For the first time, HardPlayer is officially available for **AArch64 (ARM64)** architectures, allowing it to run efficiently on Raspberry Pi and ARM-based laptops.
 * **Sidebar Persistence Fix**: Resolved the issue where the sidebar playlist would disappear when selecting a video. The list now remains visible with an updated playback index.
 * **Faster Loading Engine**: Reduced data extraction time using optimized `yt-dlp` and `oEmbed` calls to open links faster than ever.
 
@@ -112,13 +124,13 @@ hardplayer -search "test" -quality 720p -device cpu
 ### Arch Linux (Pacman):
 ```bash
 sudo pacman -S aria2  # Required for high-speed downloads
-sudo pacman -U hardplayer-18.0.0-1-x86_64.pkg.tar.zst
+sudo pacman -U hardplayer-19.0.0-1-x86_64.pkg.tar.zst
 ```
 
 ### Debian/Ubuntu (DEB):
 ```bash
 sudo apt install aria2
-sudo dpkg -i hardplayer_18.0.0_x86_64.deb
+sudo dpkg -i hardplayer_19.0.0_x86_64.deb
 ```
 
 ## 📦 Requirements
