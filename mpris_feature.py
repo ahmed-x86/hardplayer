@@ -1,8 +1,8 @@
 # mpris_feature.py
 
-import re
 import urllib.parse
 from thumbnail_gen import get_local_thumbnail
+from get_youtube_thumbnail import get_youtube_thumbnail  # الاستيراد الجديد
 
 try:
     import dbus
@@ -14,7 +14,6 @@ except ImportError:
 
 class HardPlayerMPRIS(dbus.service.Object):
     def __init__(self, main_win):
-        
         dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
         bus_name = dbus.service.BusName('org.mpris.MediaPlayer2.hardplayer', bus=dbus.SessionBus())
         super(HardPlayerMPRIS, self).__init__(bus_name, '/org/mpris/MediaPlayer2')
@@ -22,12 +21,10 @@ class HardPlayerMPRIS(dbus.service.Object):
         self.main_win = main_win
         self.player = main_win.player
 
-        
         self.player.observe_property('pause', self.on_pause_change)
         self.player.observe_property('media-title', self.on_metadata_change)
-        self.player.observe_property('duration', self.on_metadata_change) # مطلوب لظهور شريط التقدم
+        self.player.observe_property('duration', self.on_metadata_change)
 
-    
     @dbus.service.signal('org.freedesktop.DBus.Properties', signature='sa{sv}as')
     def PropertiesChanged(self, interface, changed_properties, invalidated_properties):
         pass
@@ -36,7 +33,6 @@ class HardPlayerMPRIS(dbus.service.Object):
     def Seeked(self, position):
         pass
 
-    
     def on_pause_change(self, name, value):
         status = 'Paused' if value else 'Playing'
         GLib.idle_add(self.PropertiesChanged, 'org.mpris.MediaPlayer2.Player', {'PlaybackStatus': status}, [])
@@ -45,7 +41,6 @@ class HardPlayerMPRIS(dbus.service.Object):
         metadata = self.Get('org.mpris.MediaPlayer2.Player', 'Metadata')
         GLib.idle_add(self.PropertiesChanged, 'org.mpris.MediaPlayer2.Player', {'Metadata': metadata}, [])
 
-    
     @dbus.service.method('org.mpris.MediaPlayer2.Player', in_signature='', out_signature='')
     def PlayPause(self): 
         self.player.pause = not self.player.pause
@@ -70,10 +65,8 @@ class HardPlayerMPRIS(dbus.service.Object):
     def Previous(self): 
         GLib.idle_add(self.main_win.play_previous)
 
-    
     @dbus.service.method('org.mpris.MediaPlayer2.Player', in_signature='x', out_signature='')
     def Seek(self, offset):
-        # 
         current = getattr(self.player, 'time_pos', 0)
         if current is not None:
             new_pos = current + (offset / 1000000.0)
@@ -82,11 +75,9 @@ class HardPlayerMPRIS(dbus.service.Object):
 
     @dbus.service.method('org.mpris.MediaPlayer2.Player', in_signature='ox', out_signature='')
     def SetPosition(self, track_id, position):
-        
         self.player.time_pos = position / 1000000.0
         GLib.idle_add(self.Seeked, position)
 
-    
     @dbus.service.method('org.freedesktop.DBus.Properties', in_signature='ss', out_signature='v')
     def Get(self, interface, prop):
         if interface == 'org.mpris.MediaPlayer2':
@@ -97,12 +88,10 @@ class HardPlayerMPRIS(dbus.service.Object):
             if prop == 'PlaybackStatus': 
                 return 'Paused' if self.player.pause else 'Playing'
             
-            
             if prop == 'Position': 
                 pos = getattr(self.player, 'time_pos', 0)
                 return dbus.Int64((pos or 0) * 1000000)
 
-            
             if prop == 'Metadata':
                 title = getattr(self.player, 'media_title', "HardPlayer") or "HardPlayer"
                 path = getattr(self.player, 'path', "") or ""
@@ -112,28 +101,22 @@ class HardPlayerMPRIS(dbus.service.Object):
                     'xesam:title': dbus.String(title)
                 }
 
-                
                 duration = getattr(self.player, 'duration', 0)
                 if duration:
                     meta['mpris:length'] = dbus.Int64(duration * 1000000)
 
-                
-                if path.startswith('http') and ('youtube.com' in path or 'youtu.be' in path):
-                    match = re.search(r'(?:v=|youtu\.be\/)([^&]+)', path)
-                    if match:
-                        vid_id = match.group(1)
-                        thumb_url = f"https://img.youtube.com/vi/{vid_id}/hqdefault.jpg"
-                        meta['mpris:artUrl'] = dbus.String(thumb_url)
-                elif path and not path.startswith('http'):
+                # جلب الصورة المصغرة (يوتيوب أو محلي)
+                if path.startswith('http'):
+                    yt_thumb = get_youtube_thumbnail(path)
+                    if yt_thumb:
+                        meta['mpris:artUrl'] = dbus.String(yt_thumb)
+                elif path:
                     meta['xesam:url'] = dbus.String(f"file://{urllib.parse.quote(path)}")
-                    
-                
                     local_thumb = get_local_thumbnail(path)
                     if local_thumb:
                         meta['mpris:artUrl'] = dbus.String(f"file://{urllib.parse.quote(local_thumb)}")
 
                 return dbus.Dictionary(meta, signature='sv')
-            
             
             if prop == 'CanGoNext': return True
             if prop == 'CanGoPrevious': return True
