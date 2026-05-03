@@ -1,9 +1,9 @@
-name: HardPlayer Evolution (v12.0.0)
+name: HardPlayer Evolution (v13.0.0)
 
 on:
   push:
     tags:
-      - 'v12*'
+      - 'v13*'
 
 permissions:
   contents: write
@@ -35,16 +35,17 @@ jobs:
 
       - name: Build with Nuitka & Setup Desktop Entry
         run: |
-          # بناء البرنامج مع التأكد من تضمين كافة الموديولات الجديدة (UI components, Logic & CLI)
           python -m nuitka --standalone --remove-output --enable-plugin=pyqt6 --follow-imports --assume-yes-for-downloads hardplayer.py
           
-          # حذف مكتبات التشفير لضمان التوافقية مع توزيعات Linux المختلفة وتجنب Segfault
           rm -f hardplayer.dist/libssl.so* hardplayer.dist/libcrypto.so*
           
           mkdir -p package_root/opt/hardplayer
           mkdir -p package_root/usr/bin
           cp -r hardplayer.dist/* package_root/opt/hardplayer/
           mv package_root/opt/hardplayer/hardplayer.bin package_root/opt/hardplayer/hardplayer-bin
+          
+          # نسخ الصورة لضمان ظهورها داخل البرنامج
+          cp icon_in_app.png package_root/opt/hardplayer/
           
           echo '#!/bin/bash' > package_root/usr/bin/hardplayer
           echo 'export LD_LIBRARY_PATH=/opt/hardplayer:$LD_LIBRARY_PATH' >> package_root/usr/bin/hardplayer
@@ -56,7 +57,6 @@ jobs:
           mkdir -p package_root/usr/share/applications
           cp icon.png package_root/usr/share/pixmaps/hardplayer.png
           
-          # تمت إضافة سطر MimeType هنا لربط البرنامج بمدير الملفات
           cat <<EOF > package_root/usr/share/applications/hardplayer.desktop
           [Desktop Entry]
           Name=HardPlayer
@@ -72,24 +72,24 @@ jobs:
 
       - name: Generate Production Packages (DEB, RPM, Pacman)
         run: |
-          DESC="HardPlayer v12: System Integration Update featuring 'Open With' context menu support via comprehensive MimeType associations."
+          DESC="HardPlayer v13: Hardware Intelligence Update with persistent decoding preferences, top-menu configuration, and refined UI asset handling."
           
-          # توليد الحزم بالإصدار الجديد 12.0.0
-          fpm -s dir -t deb -n hardplayer -v 12.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
-          fpm -s dir -t rpm -n hardplayer -v 12.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
-          fpm -s dir -t pacman -n hardplayer -v 12.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
+          fpm -s dir -t deb -n hardplayer -v 13.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
+          fpm -s dir -t rpm -n hardplayer -v 13.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
+          fpm -s dir -t pacman -n hardplayer -v 13.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
 
       - name: Deploy Release Assets
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/v12')
+        if: startsWith(github.ref, 'refs/tags/v13')
         with:
-          name: HardPlayer v12.0.0 - The "Open With" Integration 📁🖱️
+          name: HardPlayer v13.0.0 - Hardware Intelligence & UI Polish ⚙️🧠
           body: |
-            ### What's New in v12.0.0?
-            * **Context Menu Integration:** HardPlayer now natively appears in the "Open With" right-click menu across all major Linux file managers (Nautilus, Dolphin, Thunar, etc.).
-            * **Comprehensive Format Support:** Registered `MimeTypes` for seamless double-click or right-click playback of `mp4`, `mkv`, `webm`, `avi`, `mov`, `flv`, and common audio formats.
-            * **Powered by v11 CLI Engine:** The "Open With" action leverages the Fast Launch CLI built in v11, ensuring instantaneous playback without redundant dialog boxes.
-            * Includes all previous Power User CLI features, native YouTube search, and MPRIS metadata integration.
+            ### What's New in v13.0.0?
+            * **Hardware Intelligence (MenuBar):** New "Hardware (Default)" top menu. Choose your preferred GPU acceleration once, and HardPlayer will remember it forever.
+            * **Persistent HW Caching:** Your decoding choice is saved to `~/.cache/hardplayer/hw.txt`. No more dialogs – just pure playback speed.
+            * **UI Polish:** Fixed missing logo assets across all installations by enforcing absolute paths in the build pipeline.
+            * **Easy Reset:** Added "Reset HW Default" in the menu to instantly clear your saved preferences.
+            * Includes all v12 "Open With" integration, v11 Power CLI, and thumbnail caching.
           files: |
             *.deb
             *.rpm
