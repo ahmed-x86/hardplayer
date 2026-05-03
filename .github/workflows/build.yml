@@ -1,9 +1,9 @@
-name: HardPlayer Evolution (v11.0.0)
+name: HardPlayer Evolution (v12.0.0)
 
 on:
   push:
     tags:
-      - 'v11*'
+      - 'v12*'
 
 permissions:
   contents: write
@@ -56,6 +56,7 @@ jobs:
           mkdir -p package_root/usr/share/applications
           cp icon.png package_root/usr/share/pixmaps/hardplayer.png
           
+          # تمت إضافة سطر MimeType هنا لربط البرنامج بمدير الملفات
           cat <<EOF > package_root/usr/share/applications/hardplayer.desktop
           [Desktop Entry]
           Name=HardPlayer
@@ -65,31 +66,30 @@ jobs:
           Terminal=false
           Type=Application
           Categories=AudioVideo;Video;Player;
+          MimeType=video/mp4;video/x-matroska;video/webm;video/x-msvideo;video/quicktime;video/x-flv;audio/mpeg;audio/x-wav;audio/flac;
           StartupNotify=true
           EOF
 
       - name: Generate Production Packages (DEB, RPM, Pacman)
         run: |
-          DESC="HardPlayer v11: Power User CLI Update featuring direct terminal control, UI-bypass Fast Launch, and advanced hardware decoding overrides."
+          DESC="HardPlayer v12: System Integration Update featuring 'Open With' context menu support via comprehensive MimeType associations."
           
-          # توليد الحزم بالإصدار الجديد 11.0.0
-          fpm -s dir -t deb -n hardplayer -v 11.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
-          fpm -s dir -t rpm -n hardplayer -v 11.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
-          fpm -s dir -t pacman -n hardplayer -v 11.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
+          # توليد الحزم بالإصدار الجديد 12.0.0
+          fpm -s dir -t deb -n hardplayer -v 12.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
+          fpm -s dir -t rpm -n hardplayer -v 12.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
+          fpm -s dir -t pacman -n hardplayer -v 12.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
 
       - name: Deploy Release Assets
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/v11')
+        if: startsWith(github.ref, 'refs/tags/v12')
         with:
-          name: HardPlayer v11.0.0 - Power User CLI & Fast Launch 🚀💻
+          name: HardPlayer v12.0.0 - The "Open With" Integration 📁🖱️
           body: |
-            ### What's New in v11.0.0?
-            * **Power User CLI:** Full terminal control! Launch media, search YouTube, and force hardware decoding directly from your command line.
-            * **Fast Launch (UI Bypass):** Skip the startup and decoding dialogs entirely. Use `hardplayer <url/path> -device old_nvidia -quality 1080p` to instantly blast media straight to the MPV engine.
-            * **Direct YouTube Search:** Type `hardplayer -search "query"` to jump straight into the native search interface without opening the initial dialog.
-            * **Audio-Only Mode:** Save RAM and bandwidth by playing YouTube videos as music/podcasts using the `-quality audio` flag.
-            * **Advanced HWDEC Mapping:** New custom device map including `-device old_nvidia` (maps to `cuda-copy`) for perfect hardware acceleration compatibility with older GPUs.
-            * **Modular Architecture:** Command-line parsing is now elegantly separated into its own `cli_parser.py` module, keeping the core KISS-compliant.
+            ### What's New in v12.0.0?
+            * **Context Menu Integration:** HardPlayer now natively appears in the "Open With" right-click menu across all major Linux file managers (Nautilus, Dolphin, Thunar, etc.).
+            * **Comprehensive Format Support:** Registered `MimeTypes` for seamless double-click or right-click playback of `mp4`, `mkv`, `webm`, `avi`, `mov`, `flv`, and common audio formats.
+            * **Powered by v11 CLI Engine:** The "Open With" action leverages the Fast Launch CLI built in v11, ensuring instantaneous playback without redundant dialog boxes.
+            * Includes all previous Power User CLI features, native YouTube search, and MPRIS metadata integration.
           files: |
             *.deb
             *.rpm
