@@ -11,15 +11,15 @@ permissions:
 jobs:
   build:
     name: Build & Package (${{ matrix.arch }})
-    # استخدام نظام الماتريكس لبناء النسختين x86 و ARM
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - arch: x86_64
             os: ubuntu-latest
           - arch: aarch64
-            os: ubuntu-24.04-arm64 # بناء أصلي لمعمارية ARM64
+            os: ubuntu-24.04-arm64
 
     steps:
       - name: Checkout Code
@@ -29,11 +29,22 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
+          cache: 'pip'
+
+      - name: Cache Nuitka & Compiler Build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/Nuitka
+            ~/.ccache
+          key: ${{ runner.os }}-${{ matrix.arch }}-nuitka-${{ hashFiles('**/*.py') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.arch }}-nuitka-
 
       - name: Install OS Packaging Tools & Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ruby ruby-dev rubygems build-essential rpm libarchive-tools zstd libdbus-1-dev libgirepository1.0-dev libcairo2-dev
+          sudo apt-get install -y ruby ruby-dev rubygems build-essential rpm libarchive-tools zstd libdbus-1-dev libgirepository1.0-dev libcairo2-dev ccache
           sudo gem install --no-document fpm
 
       - name: Install Build Dependencies
@@ -83,15 +94,9 @@ jobs:
           VER="18.0.0"
           ARCH="${{ matrix.arch }}"
           
-          # بناء الحزم مع تحديد المعمارية ديناميكياً
           fpm -s dir -t deb -n hardplayer -v $VER -a $ARCH --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d aria2 -C package_root .
           fpm -s dir -t rpm -n hardplayer -v $VER -a $ARCH --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d aria2 -C package_root .
           fpm -s dir -t pacman -n hardplayer -v $VER -a $ARCH --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d aria2 -C package_root .
-
-      - name: Rename Pacman files for consistency
-        run: |
-          # إصلاح اسم ملف pacman لكي يظهر بشكل واضح في المرفقات
-          for f in *.zst; do mv "$f" "hardplayer-18.0.0-1-${{ matrix.arch }}.pkg.tar.zst"; done
 
       - name: Deploy Release Assets
         uses: softprops/action-gh-release@v2
@@ -109,15 +114,4 @@ jobs:
             
             ### What's New in v18.0.0?
             * **YouTube Playlist Optimization:** تحسين جذري في تشغيل قوائم التشغيل. الآن يتم جلب بيانات أول فيديو فوراً لبدء التشغيل بدون انتظار تحميل القائمة كاملة.
-            * **Multi-Arch Support:** لأول مرة، HardPlayer متاح رسمياً لمعماريات **AArch64** ليعمل بكفاءة على أجهزة ARM (مثل Raspberry Pi أو أجهزة اللابتوب بنظام ARM).
-            * **Faster Loading Speed:** تم تحسين استخراج بيانات `yt-dlp` لتقليل زمن الانتظار عند فتح روابط يوتيوب.
-            * **Bug Fixes:** إصلاح مشكلة اختفاء القائمة الجانبية عند اختيار فيديو من قائمة تشغيل.
-
-            **Technical Dependencies:**
-            * يحتاج البرنامج إلى وجود `mpv` و `ffmpeg` و `aria2` مثبتة على النظام لضمان أفضل أداء وتحميل سريع.
-          files: |
-            *.deb
-            *.rpm
-            *.zst
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            * **Multi-Arch Support:** لأول مرة،
