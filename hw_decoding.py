@@ -6,6 +6,18 @@ from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 
+# --- الإضافة الخاصة بـ v11 CLI (Fast Launch) ---
+# خريطة الأجهزة للوضع اليدوي من التيرمنال
+# old_nvidia موجهة خصيصاً للأجيال الأقدم (مثل كروت Quadro M-series) وتستخدم cuda-copy لضمان التوافق
+DEVICE_MAP = {
+    'cpu': 'no',
+    'intel': 'vaapi',
+    'amd': 'vaapi',
+    'nvidia': 'nvdec',
+    'old_nvidia': 'cuda-copy' 
+}
+# ---------------------------------------------
+
 def get_decoding_options():
     """
     Scans the system using Linux commands to identify available graphics cards
