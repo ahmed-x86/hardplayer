@@ -1,5 +1,6 @@
 # youtube_feature.py
 
+import os # تمت الإضافة للتعامل مع مسح الملفات
 import subprocess
 import urllib.request
 import json
@@ -517,19 +518,38 @@ class YTInfoFetcher(QThread):
             self.error.emit(str(e))
 
 class DownloadWorker(QThread):
-    """خيط للتحميل الفعلي للفيديو وإرسال التقدم مع حساب النسبة يدوياً"""
+    """خيط للتحميل الفعلي للفيديو وإرسال التقدم مع إمكانية الإلغاء"""
     progress_signal = pyqtSignal(dict)
     finished_signal = pyqtSignal()
 
-    def __init__(self, url, format_id):
+    def __init__(self, url, format_id, dl_options=None):
         super().__init__()
         self.url = url
         self.format_id = format_id
+        self.dl_options = dl_options or {}
+        
+        # متغيرات التحكم بالإلغاء ومسح الملفات
+        self._abort = False
+        self._delete_parts = False
+        self.downloaded_filepaths = set() # لحفظ مسارات الملفات قيد التحميل لتنظيفها لاحقاً
+
+    def abort(self, delete_parts):
+        """دالة لإرسال أمر إيقاف التحميل من الخارج"""
+        self._abort = True
+        self._delete_parts = delete_parts
 
     def run(self):
         def progress_hook(d):
+            # إيقاف التحميل فوراً برمي استثناء مخصص إذا ضغط المستخدم Cancel
+            if self._abort:
+                raise ValueError("DOWNLOAD_CANCELLED")
+                
             if d['status'] == 'downloading':
-                # حساب النسبة المئوية يدوياً لضمان تقدم الشريط
+                # حفظ مسار الملف الحالي (قد يكون ملف صوت منفصل وملف فيديو منفصل)
+                if 'filename' in d:
+                    self.downloaded_filepaths.add(d['filename'])
+                    
+                # حساب النسبة المئوية يدوياً
                 downloaded = d.get('downloaded_bytes', 0)
                 total = d.get('total_bytes') or d.get('total_bytes_estimate', 0)
                 
@@ -537,7 +557,6 @@ class DownloadWorker(QThread):
                 if total > 0:
                     percent_val = (downloaded / total) * 100
                 
-                # تنظيف كافة النصوص من الأكواد الغريبة (ANSI) قبل الإرسال
                 clean_data = {
                     'status': 'downloading',
                     'percent': percent_val,
@@ -553,11 +572,71 @@ class DownloadWorker(QThread):
             'progress_hooks': [progress_hook],
             'outtmpl': '%(title)s.%(ext)s',
             'quiet': True,
-            'noprogress': True
+            'noprogress': True,
+            # 🔴 السر هنا: تجاهل الأخطاء العابرة (مثل الترجمة 429) لمنع انهيار الفيديو بالكامل
+            'ignoreerrors': True,
+            'postprocessors': []
         }
+
+        # 1. الترجمة
+        if self.dl_options.get('subs'):
+            ydl_opts['writesubtitles'] = True
+            ydl_opts['writeautomaticsub'] = True 
+            ydl_opts['sleep_interval_subtitles'] = 2 
+            
+            lang = self.dl_options.get('sub_lang', 'en,ar')
+            if lang:
+                ydl_opts['subtitleslangs'] = [l.strip() for l in lang.split(',')]
+                
+            ydl_opts['postprocessors'].append({
+                'key': 'FFmpegSubtitlesConvertor',
+                'format': 'srt',
+            })
+            ydl_opts['postprocessors'].append({
+                'key': 'FFmpegEmbedSubtitle',
+            })
+
+        # 2. الصورة المصغرة
+        if self.dl_options.get('thumb'):
+            ydl_opts['writethumbnail'] = True
+            ydl_opts['postprocessors'].append({
+                'key': 'FFmpegThumbnailsConvertor',
+                'format': 'jpg',
+            })
+
+        # 3. الفصول
+        if self.dl_options.get('chapters'):
+            ydl_opts['postprocessors'].append({
+                'key': 'FFmpegMetadata',
+                'add_chapters': True,
+            })
+
+        # تنظيف القائمة إذا كانت فارغة لتجنب مشاكل yt-dlp
+        if not ydl_opts['postprocessors']:
+            del ydl_opts['postprocessors']
+
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([self.url])
-            self.finished_signal.emit()
+                
+            # إذا لم يتم الإلغاء، أرسل إشارة الانتهاء
+            if not self._abort:
+                self.finished_signal.emit()
+                
+        except ValueError as e:
+            # التقاط طلب الإلغاء المخصص
+            if str(e) == "DOWNLOAD_CANCELLED":
+                print("[*] 🛑 Download was manually cancelled.")
+                if self._delete_parts:
+                    # عملية مسح الملفات غير المكتملة
+                    for fpath in self.downloaded_filepaths:
+                        # yt-dlp قد يخلف ملفات بصيغ مختلفة عند الفشل
+                        for ext in ['', '.part', '.ytdl']:
+                            f = fpath + ext
+                            if os.path.exists(f):
+                                try:
+                                    os.remove(f)
+                                except Exception:
+                                    pass
         except Exception as e:
             print(f"[*] ⚠️ Download Worker Error: {e}")
