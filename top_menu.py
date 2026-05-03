@@ -9,6 +9,8 @@ from PyQt6.QtGui import QAction
 
 # استيراد خريطة الأجهزة من ملف الـ hardware decoding الخاص بك
 from hw_decoding import DEVICE_MAP
+# استيراد نافذة إدخال الرابط من المكونات
+from ui_components import YouTubeURLDialog
 
 class TopMenuBar(QMenuBar):
     """
@@ -21,6 +23,7 @@ class TopMenuBar(QMenuBar):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.main_window = parent # حفظ مرجع للنافذة الرئيسية
         self.init_style()
         self.setup_menus()
         self.setup_playlist_button()
@@ -81,6 +84,11 @@ class TopMenuBar(QMenuBar):
         reset_action = hw_menu.addAction("Reset HW Default 🔄")
         reset_action.triggered.connect(self.reset_default_hwdec)
 
+        # --- إضافة قائمة YouTube الجديدة هنا ---
+        youtube_menu = self.addMenu("YouTube 📺")
+        download_action = youtube_menu.addAction("Download YouTube Video 📥")
+        download_action.triggered.connect(self.show_youtube_dialog)
+
     def setup_playlist_button(self):
         """إضافة زر الـ Playlist في أقصى اليمين"""
         self.playlist_btn = QPushButton("📜")
@@ -100,6 +108,11 @@ class TopMenuBar(QMenuBar):
         
         # وضع الزر في الزاوية اليمنى العلوية من الـ MenuBar
         self.setCornerWidget(self.playlist_btn, Qt.Corner.TopRightCorner)
+
+    def show_youtube_dialog(self):
+        """فتح نافذة إدخال رابط اليوتيوب"""
+        self.yt_dialog = YouTubeURLDialog(self.main_window)
+        self.yt_dialog.show()
 
     # --- منطق الـ Cache المستخلص ---
     
