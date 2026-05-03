@@ -89,6 +89,34 @@ class TopMenuBar(QMenuBar):
         download_action = youtube_menu.addAction("Download YouTube Video 📥")
         download_action.triggered.connect(self.show_youtube_dialog)
 
+        youtube_menu.addSeparator()
+
+        # خيار كعنوان فقط (غير قابل للضغط)
+        ext_label = QAction("Default Extension", self)
+        ext_label.setEnabled(False)
+        youtube_menu.addAction(ext_label)
+
+        # مجموعة أكشن للصيغ
+        self.ext_action_group = QActionGroup(self)
+        self.ext_action_group.setExclusive(True)
+
+        saved_ext = self.get_saved_yt_ext()
+        extensions = ["mp4", "mkv", "webm"]
+
+        for ext in extensions:
+            action = youtube_menu.addAction(f".{ext}")
+            action.setCheckable(True)
+            self.ext_action_group.addAction(action)
+            
+            if saved_ext == ext:
+                action.setChecked(True)
+
+            action.triggered.connect(lambda checked, e=ext: self.save_yt_ext(e))
+
+        youtube_menu.addSeparator()
+        reset_ext_action = youtube_menu.addAction("Reset Extension 🔄")
+        reset_ext_action.triggered.connect(self.reset_yt_ext)
+
     def setup_playlist_button(self):
         """إضافة زر الـ Playlist في أقصى اليمين"""
         self.playlist_btn = QPushButton("📜")
@@ -142,4 +170,31 @@ class TopMenuBar(QMenuBar):
         hw_file = Path.home() / ".cache" / "hardplayer" / "hw.txt"
         if hw_file.exists():
             return hw_file.read_text(encoding="utf-8").strip()
+        return None
+
+    # --- منطق الـ Cache لصيغة اليوتيوب الافتراضية ---
+
+    def save_yt_ext(self, ext):
+        cache_dir = Path.home() / ".cache" / "hardplayer"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        ext_file = cache_dir / "youtube_video_ext.txt"
+        ext_file.write_text(ext, encoding="utf-8")
+        print(f"\n[*] 💾 Saved Default YouTube Extension: '{ext}'")
+
+    def reset_yt_ext(self):
+        ext_file = Path.home() / ".cache" / "hardplayer" / "youtube_video_ext.txt"
+        if ext_file.exists():
+            ext_file.unlink()
+            print("\n[*] 🗑️ Reset Default YouTube Extension.")
+        
+        checked_action = self.ext_action_group.checkedAction()
+        if checked_action:
+            self.ext_action_group.setExclusive(False)
+            checked_action.setChecked(False)
+            self.ext_action_group.setExclusive(True)
+
+    def get_saved_yt_ext(self):
+        ext_file = Path.home() / ".cache" / "hardplayer" / "youtube_video_ext.txt"
+        if ext_file.exists():
+            return ext_file.read_text(encoding="utf-8").strip()
         return None
