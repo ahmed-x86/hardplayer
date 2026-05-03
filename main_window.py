@@ -5,10 +5,14 @@ import glob
 import threading
 import mpv
 
+# --- الإضافة الجديدة للتعامل مع ملفات الكاش ---
+from pathlib import Path
+# ----------------------------------------------
+
 from PyQt6.QtWidgets import QMainWindow, QStackedWidget, QWidget, QVBoxLayout, QLabel, QFileDialog, QDialog
 from PyQt6.QtCore import Qt, QTimer
-# تم إضافة QPixmap هنا لتحميل الصور
-from PyQt6.QtGui import QFont, QPixmap
+# تم إضافة QActionGroup للتحكم بعلامات الصح في القائمة المنسدلة
+from PyQt6.QtGui import QFont, QPixmap, QActionGroup
 
 # Import configurations and features from our other modules
 from config import BASE
@@ -50,9 +54,13 @@ class HardPlayerWindow(QMainWindow):
         }
         # ---------------------------------------------
         
+        # --- الإضافة الجديدة: إنشاء الشريط العلوي ---
+        self.setup_menu_bar()
+        # --------------------------------------------
+
         # --- v6 UI Layout Setup ---
-        # إزالة شريط القوائم العلوي تماماً
-        self.setMenuBar(None)
+        # تم تعطيل هذا السطر لكي يظهر شريط العتاد الجديد
+        # self.setMenuBar(None) 
 
         self.central_widget = QWidget()
         # Catppuccin Mocha Background
@@ -79,6 +87,13 @@ class HardPlayerWindow(QMainWindow):
         self.icon_label = QLabel()
         self.icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         pixmap = QPixmap("icon_in_app.png")
+        
+        # --- الإضافة الجديدة لضمان قراءة الصورة من مجلد التثبيت دائماً وتخطي السطر السابق ---
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        icon_path = os.path.join(base_dir, "icon_in_app.png")
+        pixmap = QPixmap(icon_path)
+        # ------------------------------------------------------------------------------------
+
         if not pixmap.isNull():
             # تغيير حجم الصورة لـ 150x150 مع الحفاظ على التناسب والجودة
             self.icon_label.setPixmap(pixmap.scaled(150, 150, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
@@ -163,6 +178,79 @@ class HardPlayerWindow(QMainWindow):
             QTimer.singleShot(100, self.show_startup_dialog)
         else:
             QTimer.singleShot(100, self.process_cli_launch)
+
+    # =====================================================================
+    # --- دوال الشريط العلوي وملف الكاش الجديدة (HW Cache Logic) ---
+    # =====================================================================
+    def setup_menu_bar(self):
+        # تفعيل الشريط العلوي مجدداً بعد حذفه في v6 Layout
+        menu_bar = self.menuBar()
+        menu_bar.setStyleSheet("""
+            QMenuBar { background-color: #11111b; color: #cdd6f4; font-size: 13px; }
+            QMenuBar::item:selected { background-color: #313244; border-radius: 4px; }
+            QMenu { background-color: #1e1e2e; color: #cdd6f4; border: 1px solid #313244; font-size: 13px; }
+            QMenu::item:selected { background-color: #313244; }
+            /* --- تمت إضافة التنسيق الجديد لتلوين علامة الصح والخيار المحدد بالأخضر --- */
+            QMenu::item:checked { color: #a6e3a1; font-weight: bold; }
+            QMenu::indicator { width: 13px; height: 13px; }
+        """)
+
+        hw_menu = menu_bar.addMenu("Hardware (Default) ⚙️")
+
+        # إنشاء ActionGroup لضمان أنه يمكن اختيار عتاد واحد فقط في كل مرة (مثل Radio Buttons)
+        self.hw_action_group = QActionGroup(self)
+        self.hw_action_group.setExclusive(True)
+
+        saved_hwdec = self.get_saved_hwdec()
+
+        for cli_name, hw_arg in DEVICE_MAP.items():
+            action = hw_menu.addAction(f"Save: {cli_name} ({hw_arg})")
+            
+            # تفعيل خاصية علامة الصح (Checkable) للخيار
+            action.setCheckable(True)
+            self.hw_action_group.addAction(action)
+            
+            # قراءة الكاش، وإذا كان الخيار متطابقاً، نضع علامة الصح عليه عند بدء البرنامج
+            if saved_hwdec == hw_arg:
+                action.setChecked(True)
+
+            action.triggered.connect(lambda checked, h=hw_arg: self.save_default_hwdec(h))
+            
+        hw_menu.addSeparator()
+        reset_action = hw_menu.addAction("Reset HW Default 🔄")
+        reset_action.triggered.connect(self.reset_default_hwdec)
+
+    def save_default_hwdec(self, hw_arg):
+        cache_dir = Path.home() / ".cache" / "hardplayer"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        hw_file = cache_dir / "hw.txt"
+        
+        # write_text تقوم بإنشاء الملف إذا لم يكن موجوداً، أو تحذفه وتكتب فوقه (Overwrite) إذا كان موجوداً
+        hw_file.write_text(hw_arg, encoding="utf-8")
+        print(f"\n[*] 💾 Saved Default HWDEC: '{hw_arg}' to {hw_file}")
+
+    def reset_default_hwdec(self):
+        hw_file = Path.home() / ".cache" / "hardplayer" / "hw.txt"
+        if hw_file.exists():
+            hw_file.unlink() # يقوم بحذف الملف من الجهاز
+            print("\n[*] 🗑️ Reset Default HWDEC. The Dialog will show again on next playback.")
+        else:
+            print("\n[*] ℹ️ No saved HWDEC found.")
+            
+        # إزالة علامة الصح المرئية من القائمة المنسدلة
+        checked_action = self.hw_action_group.checkedAction()
+        if checked_action:
+            # يجب إيقاف الحصرية (Exclusive) مؤقتاً لنتمكن من إزالة الصح، ثم إعادتها
+            self.hw_action_group.setExclusive(False)
+            checked_action.setChecked(False)
+            self.hw_action_group.setExclusive(True)
+
+    def get_saved_hwdec(self):
+        hw_file = Path.home() / ".cache" / "hardplayer" / "hw.txt"
+        if hw_file.exists():
+            return hw_file.read_text(encoding="utf-8").strip()
+        return None
+    # =====================================================================
 
     # --- الإضافات الجديدة الخاصة بـ CLI ---
     def process_cli_launch(self):
@@ -348,6 +436,19 @@ class HardPlayerWindow(QMainWindow):
         """Prompts the user for hardware decoding preferences and starts playback."""
         print(f"\n{'-'*60}\n[*] 📂 Video Selected: {source}")
         
+        # --- الإضافة الجديدة: فحص الكاش قبل فتح الديالوج للهروب المبكر ---
+        saved_hwdec = self.get_saved_hwdec()
+        if saved_hwdec:
+            print(f"[*] ⚡ Fast Track: Using Saved HWDEC '{saved_hwdec}'")
+            self.player['hwdec'] = saved_hwdec
+            self.scan_folder(source)
+            self.stack.setCurrentWidget(self.video_container)
+            print(f"[*] ▶️  Passing to MPV Engine...\n{'-'*60}\n")
+            self.player.play(source)
+            QTimer.singleShot(1500, lambda: print(f"[*] 🎞️ Playing via Saved Cache: {saved_hwdec}"))
+            return
+        # -----------------------------------------------------------------
+
         decoding_dialog = DecodingDialog(self)
         if decoding_dialog.exec() == QDialog.DialogCode.Accepted:
             selected_hwdec = decoding_dialog.selected_hwdec
@@ -407,6 +508,13 @@ class HardPlayerWindow(QMainWindow):
             else:
                 return # المستخدم أغلق النافذة
                 
+        # --- الإضافة الجديدة: فحص الكاش وحقنه ليتخطى الديالوج بخدعة بسيطة ---
+        saved_hwdec = self.get_saved_hwdec()
+        if not self.cli_device and saved_hwdec:
+            self.cli_device = "cached_hw"
+            DEVICE_MAP["cached_hw"] = saved_hwdec
+        # --------------------------------------------------------------------
+
         # --- 2. التحقق المستقل من العتاد ---
         if self.cli_device and self.cli_device in DEVICE_MAP:
             selected_hwdec = DEVICE_MAP[self.cli_device]
