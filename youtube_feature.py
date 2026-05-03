@@ -3,6 +3,8 @@
 import subprocess
 import urllib.request
 import json
+import re # مطلوب لإزالة الرموز الغريبة
+import yt_dlp  # مكتبة أساسية لمحرك التحميل الجديد
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, 
                              QLabel, QTextEdit, QLineEdit, QPushButton,
                              QScrollArea, QWidget, QFrame)
@@ -11,6 +13,11 @@ from PyQt6.QtGui import QFont, QPixmap
 
 # التوصيل بملفك الجديد لاستخراج الصور المصغرة
 from get_youtube_thumbnail import get_youtube_thumbnail
+
+# دالة لتنظيف النصوص من أكواد ANSI (الرموز الغريبة مثل [0;32m)
+def clean_ansi(text):
+    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+    return ansi_escape.sub('', str(text))
 
 class YouTubeSimpleQualityDialog(QDialog):
     """
@@ -422,3 +429,69 @@ class YouTubeSearchDialog(QDialog):
     def select_video(self, url):
         self.selected_url = url
         self.accept()
+
+# --- New Components for Background Fetching and Downloading ---
+
+class YTInfoFetcher(QThread):
+    """خيط لجلب كافة بيانات الفيديو التفصيلية في الخلفية لمنع تجمد الواجهة."""
+    finished = pyqtSignal(dict)
+    error = pyqtSignal(str)
+
+    def __init__(self, url):
+        super().__init__()
+        self.url = url
+
+    def run(self):
+        try:
+            ydl_opts = {'quiet': True, 'noplaylist': True}
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(self.url, download=False)
+                self.finished.emit(info)
+        except Exception as e:
+            self.error.emit(str(e))
+
+class DownloadWorker(QThread):
+    """خيط للتحميل الفعلي للفيديو وإرسال التقدم مع حساب النسبة يدوياً"""
+    progress_signal = pyqtSignal(dict)
+    finished_signal = pyqtSignal()
+
+    def __init__(self, url, format_id):
+        super().__init__()
+        self.url = url
+        self.format_id = format_id
+
+    def run(self):
+        def progress_hook(d):
+            if d['status'] == 'downloading':
+                # حساب النسبة المئوية يدوياً لضمان تقدم الشريط
+                downloaded = d.get('downloaded_bytes', 0)
+                total = d.get('total_bytes') or d.get('total_bytes_estimate', 0)
+                
+                percent_val = 0.0
+                if total > 0:
+                    percent_val = (downloaded / total) * 100
+                
+                # تنظيف كافة النصوص من الأكواد الغريبة (ANSI) قبل الإرسال
+                clean_data = {
+                    'status': 'downloading',
+                    'percent': percent_val,
+                    '_percent_str': f"{percent_val:.1f}%",
+                    '_speed_str': clean_ansi(d.get('_speed_str', '0.00MiB/s')),
+                    '_eta_str': clean_ansi(d.get('_eta_str', '00:00')),
+                    '_total_bytes_str': clean_ansi(d.get('_total_bytes_str', d.get('_total_bytes_estimate_str', 'N/A')))
+                }
+                self.progress_signal.emit(clean_data)
+
+        ydl_opts = {
+            'format': self.format_id,
+            'progress_hooks': [progress_hook],
+            'outtmpl': '%(title)s.%(ext)s',
+            'quiet': True,
+            'noprogress': True
+        }
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([self.url])
+            self.finished_signal.emit()
+        except Exception as e:
+            print(f"[*] ⚠️ Download Worker Error: {e}")
