@@ -262,21 +262,176 @@ class PlayerControlBar(QFrame):
 
 # --- New Components for YouTube Download Feature ---
 
+class ToggleSwitch(QPushButton):
+    """زر تشغيل وإيقاف (On/Off) بتصميم احترافي"""
+    def __init__(self, parent=None):
+        super().__init__("OFF", parent)
+        self.setCheckable(True)
+        self.setFixedSize(60, 30)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setStyleSheet(self._get_style(False))
+        self.toggled.connect(self._on_toggled)
+
+    def _on_toggled(self, checked):
+        self.setText("ON" if checked else "OFF")
+        self.setStyleSheet(self._get_style(checked))
+
+    def _get_style(self, checked):
+        if checked:
+            return """
+                QPushButton { background-color: #cba6f7; color: #11111b; font-weight: bold; border-radius: 15px; border: none; }
+            """
+        else:
+            return """
+                QPushButton { background-color: #45475a; color: #cdd6f4; font-weight: bold; border-radius: 15px; border: none; }
+            """
+
+class DownloadOptionsDialog(QDialog):
+    """نافذة لاختيار الإضافات (الترجمة، الصورة المصغرة، الفصول، الوصف)"""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Download Extras")
+        self.setFixedSize(450, 400)
+        self.setStyleSheet("background-color: #1e1e2e; color: #cdd6f4;")
+        
+        layout = QVBoxLayout(self)
+        layout.setSpacing(15)
+
+        lbl = QLabel("🛠️ Select Additional Features")
+        lbl.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(lbl)
+
+        # دالة مساعدة لإنشاء صف الخيارات
+        def create_row(label_text, icon):
+            row = QHBoxLayout()
+            lbl = QLabel(f"{icon} {label_text}")
+            lbl.setFont(QFont("Arial", 11))
+            switch = ToggleSwitch()
+            row.addWidget(lbl)
+            row.addStretch()
+            row.addWidget(switch)
+            return row, switch
+
+        # 1. Subtitles
+        sub_row, self.sub_switch = create_row("Download Subtitles & Embed", "📝")
+        layout.addLayout(sub_row)
+        
+        # حاوية جديدة تضم خانة الإدخال وزر المعلومات
+        self.sub_input_container = QWidget()
+        sub_layout = QHBoxLayout(self.sub_input_container)
+        sub_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.sub_lang_input = QLineEdit()
+        self.sub_lang_input.setText("en,ar") 
+        self.sub_lang_input.setStyleSheet("background: #313244; padding: 5px; border-radius: 4px; border: 1px solid #45475a;")
+        
+        # تصميم جديد لزر الـ info لتجنب مشاكل الإيموجي في لينكس
+        self.info_btn = QPushButton(" i ")
+        self.info_btn.setFont(QFont("Arial", 12, QFont.Weight.Bold))
+        self.info_btn.setFixedSize(30, 30)
+        self.info_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.info_btn.setStyleSheet("""
+            QPushButton { background: #313244; color: #cba6f7; border-radius: 15px; font-weight: bold; border: 1px solid #45475a; }
+            QPushButton:hover { background: #45475a; border: 1px solid #cba6f7; }
+        """)
+        self.info_btn.clicked.connect(self.show_sub_info)
+        
+        sub_layout.addWidget(self.sub_lang_input)
+        sub_layout.addWidget(self.info_btn)
+        
+        self.sub_input_container.hide()
+        layout.addWidget(self.sub_input_container)
+        
+        self.sub_switch.toggled.connect(self.sub_input_container.setVisible)
+
+        # 2. Thumbnail
+        thumb_row, self.thumb_switch = create_row("Download Thumbnail (JPG)", "🖼️")
+        layout.addLayout(thumb_row)
+
+        # 3. Chapters
+        chap_row, self.chap_switch = create_row("Embed Chapters", "📑")
+        layout.addLayout(chap_row)
+
+        # 4. Info (Description, Likes, etc)
+        info_row, self.info_switch = create_row("Save Video Info (.txt)", "📄")
+        layout.addLayout(info_row)
+
+        layout.addStretch()
+
+        self.btn = QPushButton("🚀 Start Download")
+        self.btn.setStyleSheet("""
+            QPushButton { background-color: #89b4fa; color: #11111b; font-weight: bold; padding: 12px; border-radius: 6px; font-size: 14px; }
+            QPushButton:hover { background-color: #b4befe; }
+        """)
+        self.btn.clicked.connect(self.accept)
+        layout.addWidget(self.btn)
+
+    def show_sub_info(self):
+        """نافذة المعلومات المنبثقة للغات (بالإنجليزية)"""
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Subtitles Info")
+        dlg.setFixedSize(400, 380)
+        dlg.setStyleSheet("background-color: #1e1e2e; color: #cdd6f4;")
+        l = QVBoxLayout(dlg)
+        l.setSpacing(10)
+        
+        txt = QLabel("<b>Subtitle Language Codes:</b><br><br>"
+                     "You can download multiple languages by separating them with a comma (e.g., <b>en,ar,fr</b>).<br><br>"
+                     "<b>Most Common Codes:</b><br>"
+                     "• <b>en</b> : English<br>"
+                     "• <b>ar</b> : Arabic<br>"
+                     "• <b>fr</b> : French<br>"
+                     "• <b>es</b> : Spanish<br>"
+                     "• <b>de</b> : German<br>"
+                     "• <b>ru</b> : Russian<br>"
+                     "• <b>ja</b> : Japanese<br>"
+                     "• <b>tr</b> : Turkish<br>"
+                     "• <b>hi</b> : Hindi<br><br>"
+                     "<i>* Note: yt-dlp will fetch the manual subtitle if available, or automatically fallback to YouTube's auto-generated version.</i>")
+        txt.setFont(QFont("Arial", 10))
+        txt.setStyleSheet("background: transparent; border: none; line-height: 1.5;")
+        txt.setWordWrap(True)
+        l.addWidget(txt)
+        
+        btn = QPushButton("Got it")
+        btn.setStyleSheet("""
+            QPushButton { background-color: #cba6f7; color: #11111b; font-weight: bold; padding: 8px; border-radius: 4px; }
+            QPushButton:hover { background-color: #b4befe; }
+        """)
+        btn.clicked.connect(dlg.accept)
+        l.addWidget(btn, alignment=Qt.AlignmentFlag.AlignCenter)
+        
+        dlg.exec()
+
+    def get_options(self):
+        return {
+            'subs': self.sub_switch.isChecked(),
+            'sub_lang': self.sub_lang_input.text().strip(),
+            'thumb': self.thumb_switch.isChecked(),
+            'chapters': self.chap_switch.isChecked(),
+            'info': self.info_switch.isChecked()
+        }
+
 class DownloadProgressDialog(QDialog):
     """
     النافذة النهائية التي تعرض التقدم والبيانات بتصميم Catppuccin Mocha.
     """
-    def __init__(self, info, format_code, quality_name, parent=None):
+    def __init__(self, info, format_code, quality_name, dl_options, parent=None):
         super().__init__(parent)
         self.setWindowTitle("HardPlayer - Acquiring Stream")
         self.setFixedWidth(520)
         self.setStyleSheet("background-color: #11111b; color: #cdd6f4;")
         
+        # حفظ ملف المعلومات فوراً إذا تم اختياره
+        if dl_options.get('info'):
+            self.save_info_file(info)
+            
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(15)
         
-        # --- 1. قسم التفاصيل (Refactored Text & More Data) ---
+        # --- 1. قسم التفاصيل ---
         self.info_frame = QFrame()
         self.info_frame.setObjectName("InfoFrame")
         self.info_frame.setStyleSheet("""
@@ -318,7 +473,7 @@ class DownloadProgressDialog(QDialog):
         
         layout.addWidget(self.info_frame)
 
-        # --- 2. قسم شريط التقدم (Progress Bar - Mauve Text) ---
+        # --- 2. قسم شريط التقدم ---
         self.pbar = QProgressBar()
         self.pbar.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.pbar.setStyleSheet("""
@@ -340,25 +495,132 @@ class DownloadProgressDialog(QDialog):
         self.pbar.setFormat("Initializing... %p%")
         layout.addWidget(self.pbar)
 
-        # --- 3. قسم الفوتر (Time Remaining) ---
+        # --- 3. قسم الفوتر و زر الإلغاء ---
         footer_layout = QHBoxLayout()
         self.status_lbl = QLabel("Downloading...")
         self.status_lbl.setStyleSheet("color: #bac2de; font-size: 12px;")
         
         self.time_left_lbl = QLabel("Time Left: --:--")
         self.time_left_lbl.setStyleSheet("color: #f9e2af; font-weight: bold; font-size: 13px;")
+
+        self.cancel_btn = QPushButton("Cancel ❌")
+        self.cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.cancel_btn.setStyleSheet("""
+            QPushButton { background-color: #f38ba8; color: #11111b; font-weight: bold; border-radius: 6px; padding: 5px 15px; }
+            QPushButton:hover { background-color: #eba0ac; }
+        """)
+        self.cancel_btn.clicked.connect(self.on_cancel_btn_clicked)
         
         footer_layout.addWidget(self.status_lbl)
         footer_layout.addStretch()
         footer_layout.addWidget(self.time_left_lbl)
+        footer_layout.addWidget(self.cancel_btn)
+        
         layout.addLayout(footer_layout)
 
         # بدء التحميل الفعلي عبر العامل (Worker)
         from youtube_feature import DownloadWorker
-        self.worker = DownloadWorker(info['webpage_url'], format_code)
+        self.worker = DownloadWorker(info['webpage_url'], format_code, dl_options)
         self.worker.progress_signal.connect(self.update_progress)
         self.worker.finished_signal.connect(self.on_finished)
         self.worker.start()
+
+    def request_cancel(self):
+        """نافذة التأكيد بـ 3 خيارات وتُرجع النتيجة (True للإغلاق، False للعودة)"""
+        if not hasattr(self, 'worker') or not self.worker.isRunning():
+            return True
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Confirm Cancel")
+        dlg.setFixedSize(360, 200)
+        dlg.setStyleSheet("background-color: #1e1e2e; color: #cdd6f4;")
+        layout = QVBoxLayout(dlg)
+        
+        lbl = QLabel("هل تريد ايقاف التحميل؟\nAre you sure you want to stop the download?")
+        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lbl.setFont(QFont("Arial", 11, QFont.Weight.Bold))
+        layout.addWidget(lbl)
+        
+        btn_layout = QVBoxLayout()
+        btn_layout.setSpacing(10)
+        
+        btn_yes = QPushButton("Yes")
+        btn_yes_save = QPushButton("Yes and save downloaded files")
+        btn_no = QPushButton("No")
+        
+        btn_yes.setStyleSheet("QPushButton { background: #f38ba8; color: #11111b; font-weight: bold; padding: 8px; border-radius: 4px; } QPushButton:hover { background: #eba0ac; }")
+        btn_yes_save.setStyleSheet("QPushButton { background: #f9e2af; color: #11111b; font-weight: bold; padding: 8px; border-radius: 4px; } QPushButton:hover { background: #f2cd32; }")
+        btn_no.setStyleSheet("QPushButton { background: #a6e3a1; color: #11111b; font-weight: bold; padding: 8px; border-radius: 4px; } QPushButton:hover { background: #94e2d5; }")
+        
+        result = 0
+        def set_res(val):
+            nonlocal result
+            result = val
+            dlg.accept()
+            
+        btn_yes.clicked.connect(lambda: set_res(1))
+        btn_yes_save.clicked.connect(lambda: set_res(2))
+        btn_no.clicked.connect(lambda: set_res(0))
+        
+        btn_layout.addWidget(btn_yes)
+        btn_layout.addWidget(btn_yes_save)
+        btn_layout.addWidget(btn_no)
+        layout.addLayout(btn_layout)
+        
+        dlg.exec()
+        
+        if result == 1:
+            self.status_lbl.setText("Cancelling and Cleaning up...")
+            self.worker.abort(delete_parts=True)
+            self.worker.wait() # الانتظار حتى يتوقف الخيط
+            return True
+        elif result == 2:
+            self.status_lbl.setText("Cancelling...")
+            self.worker.abort(delete_parts=False)
+            self.worker.wait()
+            return True
+            
+        return False
+
+    def on_cancel_btn_clicked(self):
+        """يُستدعى عند الضغط على الزر الأحمر Cancel"""
+        if self.request_cancel():
+            self.accept() # إغلاق النافذة
+
+    def reject(self):
+        """اعتراض زر Esc وأي محاولة إغلاق برمجية لعدم إخفاء النافذة والتحميل مستمر"""
+        if hasattr(self, 'worker') and self.worker.isRunning():
+            if self.request_cancel():
+                super().reject()
+        else:
+            super().reject()
+
+    def closeEvent(self, event):
+        """يُستدعى عند الضغط على زر إغلاق النافذة (X) من الشريط العلوي"""
+        if hasattr(self, 'worker') and self.worker.isRunning():
+            if self.request_cancel():
+                event.accept()
+            else:
+                event.ignore()
+        else:
+            event.accept()
+
+    def save_info_file(self, info):
+        try:
+            title = info.get('title', 'video')
+            clean_title = "".join([c for c in title if c.isalpha() or c.isdigit() or c in ' -_']).rstrip()
+            filename = f"{clean_title}_info.txt"
+            with open(filename, 'w', encoding='utf-8') as f:
+                f.write(f"Title: {title}\n")
+                f.write(f"Channel: {info.get('uploader', 'N/A')}\n")
+                date_raw = info.get('upload_date') or '00000000'
+                f.write(f"Upload Date: {date_raw[:4]}-{date_raw[4:6]}-{date_raw[6:]}\n")
+                f.write(f"Views: {info.get('view_count', 'N/A')}\n")
+                f.write(f"Likes: {info.get('like_count', 'N/A')}\n\n")
+                f.write("=========================\n")
+                f.write(f"Description:\n{info.get('description', '')}\n")
+        except Exception as e:
+            print(f"[*] ⚠️ Failed to save info file: {e}")
 
     def update_progress(self, d):
         if d['status'] == 'downloading':
@@ -378,6 +640,7 @@ class DownloadProgressDialog(QDialog):
         self.status_lbl.setText("Finished Successfully!")
         self.status_lbl.setStyleSheet("color: #a6e3a1; font-weight: bold;")
         self.setWindowTitle("HardPlayer - Download Complete! ✅")
+        self.cancel_btn.hide() # إخفاء زر الإلغاء بعد الانتهاء
 
 
 class QualitySelectorDialog(QDialog):
@@ -407,14 +670,12 @@ class QualitySelectorDialog(QDialog):
         content_layout = QVBoxLayout(content_widget)
         content_layout.setSpacing(8)
 
-        # قراءة الصيغة المفضلة من الكاش
         from pathlib import Path
         pref_ext = None
         ext_file = Path.home() / ".cache" / "hardplayer" / "youtube_video_ext.txt"
         if ext_file.exists():
             pref_ext = ext_file.read_text(encoding="utf-8").strip()
 
-        # 1. زر الجودة التلقائية
         if pref_ext == "mp4":
             best_code = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/bestvideo+bestaudio/best"
         elif pref_ext:
@@ -437,7 +698,6 @@ class QualitySelectorDialog(QDialog):
         for h in sorted_heights:
             emoji = "📺" if h >= 720 else ("📱" if h >= 360 else "🥔")
             
-            # -- التعديل الجديد لاكتشاف الصيغ المتاحة لهذه الدقة --
             available_exts = set()
             for f in formats:
                 if f.get('vcodec') != 'none' and f.get('height') == h:
@@ -446,15 +706,12 @@ class QualitySelectorDialog(QDialog):
                         available_exts.add(ext)
             
             note = ""
-            # إذا كان هناك صيغة مفضلة ولم تكن موجودة في الصيغ المتاحة لهذه الدقة
             if pref_ext and available_exts and (pref_ext not in available_exts):
-                # نحدد الصيغة البديلة التي سيتم اللجوء إليها (غالباً webm في الدقات العالية)
                 fallback_ext = "webm" if "webm" in available_exts else list(available_exts)[0]
                 note = f" ({fallback_ext} because not found {pref_ext})"
                 
             text = f"{emoji} {h}p{note}"
             
-            # بناء كود التحميل مع الصيغة والـ Fallback
             if pref_ext == "mp4":
                 code = f"bestvideo[height<={h}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={h}]+bestaudio/best"
             elif pref_ext:
@@ -508,27 +765,26 @@ class QualitySelectorDialog(QDialog):
         layout.addWidget(btn)
 
     def open_advanced(self):
-        # استدعاء النافذة الأصلية من ملف youtube_feature مع تفعيل وضع التحميل
         from youtube_feature import YouTubeQualityDialog
         
         url = self.info.get('webpage_url')
         if not url:
             return
             
-        # نرسل الرابط ونحدد أننا في وضع "التحميل"
         adv_dlg = YouTubeQualityDialog(url, mode="download", parent=self)
         
-        # إذا أدخل المستخدم الكود وضغط الزر (والذي أصبح اسمه Download Video)
         if adv_dlg.exec():
-            code = adv_dlg.format_code  # استخراج الكود الذي كتبه المستخدم
+            code = adv_dlg.format_code
             if code:
-                # إرسال الكود إلى شاشة التحميل النهائية
                 self.start_dl(code, f"Custom ({code})")
 
     def start_dl(self, code, name):
-        dl_dlg = DownloadProgressDialog(self.info, code, name, self.parent())
-        dl_dlg.show()
-        self.close()
+        options_dlg = DownloadOptionsDialog(self)
+        if options_dlg.exec() == QDialog.DialogCode.Accepted:
+            dl_options = options_dlg.get_options()
+            dl_dlg = DownloadProgressDialog(self.info, code, name, dl_options, self.parent())
+            dl_dlg.show()
+            self.close()
 
 
 class YouTubeURLDialog(QDialog):
