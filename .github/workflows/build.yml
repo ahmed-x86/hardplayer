@@ -1,9 +1,9 @@
-name: HardPlayer Evolution (v16.0.0)
+name: HardPlayer Evolution (v17.0.0)
 
 on:
   push:
     tags:
-      - 'v16*'
+      - 'v17*'
 
 permissions:
   contents: write
@@ -35,7 +35,7 @@ jobs:
 
       - name: Build with Nuitka & Setup Desktop Entry
         run: |
-          # Nuitka will automatically follow imports for all new modules (youtube_feature.py, ui_components.py, etc.)
+          # Nuitka will automatically follow imports for all new modules (youtube_feature.py, ui_components.py, top_menu.py, etc.)
           python -m nuitka --standalone --remove-output --enable-plugin=pyqt6 --follow-imports --assume-yes-for-downloads hardplayer.py
           
           rm -f hardplayer.dist/libssl.so* hardplayer.dist/libcrypto.so*
@@ -73,31 +73,27 @@ jobs:
 
       - name: Generate Production Packages (DEB, RPM, Pacman)
         run: |
-          DESC="HardPlayer v16: Introducing the Pro YouTube Downloader. Fetch videos with Aria2 acceleration, real-time speed monitoring, and advanced format selection."
+          DESC="HardPlayer v17: Introducing Smart Formats & Unified Advanced UI. Set default YouTube extensions with intelligent fallbacks and enjoy a seamless downloading experience."
           
           # Added aria2 as a dependency for high-speed downloads
-          fpm -s dir -t deb -n hardplayer -v 16.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d aria2 -C package_root .
-          fpm -s dir -t rpm -n hardplayer -v 16.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d aria2 -C package_root .
-          fpm -s dir -t pacman -n hardplayer -v 16.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d aria2 -C package_root .
+          fpm -s dir -t deb -n hardplayer -v 17.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d aria2 -C package_root .
+          fpm -s dir -t rpm -n hardplayer -v 17.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d aria2 -C package_root .
+          fpm -s dir -t pacman -n hardplayer -v 17.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d aria2 -C package_root .
 
       - name: Deploy Release Assets
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/v16')
+        if: startsWith(github.ref, 'refs/tags/v17')
         with:
-          name: HardPlayer v16.0.0 - The YouTube Downloader Update 📥
+          name: HardPlayer v17.0.0 - Smart Formats & Unified UI 🚀
           body: |
-            ### What's New in v16.0.0?
-            * **YouTube Video Downloader:** A fully integrated acquiring engine. No more copy-pasting to external tools.
-                * **Aria2 Acceleration:** Support for 16 parallel connections for ultra-fast acquiring.
-                * **Advanced Selection:** Choose between dynamic simple qualities or manual format IDs (Video ID + Audio ID).
-                * **Real-time Analytics:** Monitor download speed, fileside, and exact time left (ETA) directly in the UI.
-            * **Refined Progress System:** Re-designed progress bars with Catppuccin Green styling and Mauve-colored metrics for perfect visibility.
-            * **Metadata Extractor:** Automatically fetches uploader name, upload date, likes, and comment counts for every download.
+            ### What's New in v17.0.0?
+            * **Preferred YouTube Extension:** Added a new Top Menu option to set your default YouTube format (`mp4`, `mkv`, `webm`). HardPlayer remembers your choice via a local cache and applies it automatically to both streaming and downloading!
+            * **Smart Format Fallback:** If your preferred extension isn't available for a specific resolution (e.g., requesting 4K mp4), the UI intelligently detects available formats and displays a fallback message like `(webm because not found mp4)` right on the quality button.
+            * **Unified Advanced Menu:** The advanced download dialog has been completely overhauled. It now uses the same beautiful, information-rich table UI as the streaming advanced menu, featuring a seamless "Download Mode".
             
-            **Technical Fixes:**
-            * Fixed a crash when video metadata (likes/comments) was unavailable from YouTube API.
-            * Improved ANSI cleaning to ensure speed and progress text are clear in PyQt6.
-            * Optimized background threading for zero-freeze UI during active downloads.
+            **Technical Improvements:**
+            * Optimized `yt-dlp` JSON extraction to dynamically parse available extensions per resolution.
+            * Centralized UI components to respect the DRY (Don't Repeat Yourself) principle, making the codebase cleaner and faster.
           files: |
             *.deb
             *.rpm
