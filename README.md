@@ -1,23 +1,20 @@
-# 🎬 HardPlayer (v9.0.0) — The Search Revolution 🔍🚀
+# 🎬 HardPlayer (v10.0.0) — MPRIS Art & Desktop Integration 🖼️✨
 
-A lightweight, high-performance modular media player built with **Python**, **PyQt6**, and the **MPV Engine**. Version 9.0.0 introduces a lightning-fast, native YouTube search engine built entirely around `yt-dlp`, transforming HardPlayer into a standalone media discovery platform without sacrificing its minimalistic, **Catppuccin Mocha** aesthetic.
+A lightweight, high-performance modular media player built with **Python**, **PyQt6**, and the **MPV Engine**. Version 10.0.0 brings HardPlayer closer to your system than ever before with deep MPRIS2 integration, featuring native cover art and smart local caching, all while maintaining its minimalistic, **Catppuccin Mocha** aesthetic.
 
 Built for Linux ricing enthusiasts who demand both beauty and performance. Compiled into a native binary using **Nuitka**.
 
 ![License](https://img.shields.io/badge/License-GPLv3-blue.svg)
 ![Platform](https://img.shields.io/badge/Platform-Linux%20-lightgrey)
-![Version](https://img.shields.io/badge/Version-9.0.0-mauve)
+![Version](https://img.shields.io/badge/Version-10.0.0-mauve)
 ![Theme](https://img.shields.io/badge/Theme-Catppuccin%20Mocha-blue)
 
-## ✨ What's New in v9.0?
-- **Native YouTube Search:** You can now directly search YouTube from within the application. Entering a text query instead of a URL instantly fetches the top 5 results.
-- **Lightning-Fast Parsing:** Powered by `yt-dlp`'s `--flat-playlist` capability, bypassing heavy metadata extraction to deliver search results in milliseconds.
-- **Visual Result Cards:** Search results are displayed in beautifully designed, Catppuccin-themed cards featuring:
-  - Asynchronously loaded thumbnails (Zero UI freezing via `QThread`).
-  - Channel names, video durations, and formatted view counts.
-  - Video description snippets.
-- **Zero External Bloat:** Completely dropped unstable third-party search libraries (like `Youtube-python`), relying purely on reliable `yt-dlp` JSON extraction to avoid dependency hell.
-- **Unified Media Dialog:** The `P` shortcut now serves as a universal hub for browsing local files, playing direct URLs, or exploring YouTube search queries.
+## ✨ What's New in v10.0?
+- **Rich MPRIS Metadata:** Full integration with Linux desktop environments (Waybar, SwayNC, KDE, GNOME). HardPlayer now seamlessly sends **Cover Art / Thumbnails** to your system widgets for both local and online media.
+- **Lightning-Fast Local Thumbnails:** Automatically extracts a high-quality frame from local videos using an optimized `ffmpeg` fast-seek strategy, ensuring zero UI freezing or playback stutter.
+- **Smart Thumbnail Caching:** Extracted local thumbnails are securely hashed and cached to `~/.cache/hardplayer/thumbnails`, guaranteeing zero CPU overhead when replaying your favorite videos.
+- **YouTube Artwork Integration:** Directly fetches and displays high-quality YouTube thumbnails in your system's media widget when streaming online content.
+- **Legacy v9 Search Engine:** Retains the lightning-fast, native YouTube search engine built entirely around `yt-dlp`'s `--flat-playlist` capability, complete with visual Catppuccin-themed result cards.
 
 ## 🎨 UI & Philosophy
 - **Catppuccin Mocha:** A professional, eye-friendly dark interface.
@@ -30,8 +27,8 @@ Built for Linux ricing enthusiasts who demand both beauty and performance. Compi
 ## 🛠️ Core Features
 - **Flawless Keyboard Navigation:** Focus-stealing issues resolved. Left/Right arrow keys flawlessly seek (±5 seconds). Native support for standard and hardware media keys (F7, F8, F9 fallbacks included).
 - **Dynamic Time Formatting:** Adaptive UI that smartly transitions to `HH:MM:SS` for long videos.
-- **Full MPRIS2 Support:** Native Linux integration. Control your media via system trays, Waybar, or **KDE Connect**.
-- **Hardware Acceleration Mastery:** Specialized support for **NVIDIA (NVDEC)**, Intel, and AMD. Graceful CPU fallback if the GPU encounters an unsupported codec.
+- **Advanced MPRIS2 Support:** Unmatched native Linux integration. Control your media and view stunning cover art via system trays, Waybar, or **KDE Connect**.
+- **Hardware Acceleration Mastery:** Specialized support for **NVIDIA (NVDEC)**, Intel, and AMD GPUs. Graceful CPU fallback if the GPU encounters an unsupported codec.
 - **Wayland-Native Performance:** Optimized for compositors like **Hyprland** and **Sway** with forced X11/EGL contexts where necessary to ensure window stability.
 
 ## 🐧 The Linux Spirit
@@ -41,12 +38,12 @@ HardPlayer is and will always be **Linux-exclusive**. It leverages native Linux 
 
 ### Arch Linux (Pacman):
 ```bash
-sudo pacman -U hardplayer-9.0.0.pkg.tar.zst
+sudo pacman -U hardplayer-10.0.0.pkg.tar.zst
 ```
 
 ### Debian/Ubuntu (DEB):
 ```bash
-sudo dpkg -i hardplayer_9.0.0_amd64.deb
+sudo dpkg -i hardplayer_10.0.0_amd64.deb
 ```
 
 ### Development Run:
@@ -64,9 +61,9 @@ python3 hardplayer.py
 - **`Space`** : Play / Pause (Native MPV).
 
 ## 📦 Requirements
-Ensure you have the following installed:
+Ensure you have the following installed on your system:
 - `mpv` (libmpv)
-- `ffmpeg`
+- `ffmpeg` (required for thumbnail generation and media processing)
 - `yt-dlp`
 
 ## 📜 License
