@@ -14,6 +14,7 @@ from PyQt6.QtGui import QFont, QPixmap
 from config import BASE
 from mpris_feature import HardPlayerMPRIS
 from hw_decoding import DecodingDialog
+from hw_decoding import DEVICE_MAP # تمت الإضافة هنا لجلب خريطة الأجهزة للـ CLI
 from youtube_feature import YouTubeQualityDialog, YouTubeSearchDialog
 # تم إضافة PlayerControlBar هنا
 from ui_components import AspectRatioContainer, InfoDialog, StartupDialog, PlayerControlBar
@@ -28,10 +29,26 @@ class HardPlayerWindow(QMainWindow):
     """
     The main application window that hosts the MPV player and manages media playback.
     """
-    def __init__(self):
+    # تم التعديل هنا: إضافة المتغيرات القادمة من cli_parser
+    def __init__(self, cli_path=None, cli_device=None, cli_search=False, cli_quality=None):
         super().__init__()
         self.setWindowTitle("HardPlayer")
         self.resize(800, 600)
+
+        # --- الإضافات الخاصة بحفظ أوامر التيرمنال ---
+        self.cli_path = cli_path
+        self.cli_device = cli_device
+        self.cli_search = cli_search
+        self.cli_quality = cli_quality
+        
+        self.quality_map = {
+            'best': 'bestvideo+bestaudio/best',
+            '1080p': 'bestvideo[height<=1080]+bestaudio/best',
+            '720p': 'bestvideo[height<=720]+bestaudio/best',
+            '480p': 'bestvideo[height<=480]+bestaudio/best',
+            'audio': 'bestaudio/best'
+        }
+        # ---------------------------------------------
         
         # --- v6 UI Layout Setup ---
         # إزالة شريط القوائم العلوي تماماً
@@ -140,8 +157,44 @@ class HardPlayerWindow(QMainWindow):
         # Start the D-Bus/MPRIS service for system media integration
         self.start_mpris_service()
         
-        # Show the startup dialog shortly after the main window appears
-        QTimer.singleShot(100, self.show_startup_dialog)
+        # --- تم التعديل هنا: إضافة شرط التيرمنال مع الحفاظ على السطر الأصلي ---
+        if not self.cli_path:
+            # Show the startup dialog shortly after the main window appears
+            QTimer.singleShot(100, self.show_startup_dialog)
+        else:
+            QTimer.singleShot(100, self.process_cli_launch)
+
+    # --- الإضافات الجديدة الخاصة بـ CLI ---
+    def process_cli_launch(self):
+        if self.cli_search:
+            self.search_youtube_and_play(self.cli_path)
+            return
+
+        is_url = self.cli_path.startswith("http://") or self.cli_path.startswith("https://")
+
+        if self.cli_device or self.cli_quality:
+            if is_url:
+                self.play_youtube(self.cli_path)
+            else:
+                self.fast_launch_local()
+        else:
+            if is_url:
+                self.play_youtube(self.cli_path)
+            else:
+                self.ask_for_decoding_and_play(self.cli_path)
+
+    def fast_launch_local(self):
+        selected_hwdec = "no"
+        if self.cli_device and self.cli_device in DEVICE_MAP:
+            selected_hwdec = DEVICE_MAP[self.cli_device]
+            print(f"\n{'-'*60}\n[*] 🚀 CLI Fast Launch Activated")
+            print(f"[*] 🖥️  Hardware Decoding Forced: {self.cli_device} -> {selected_hwdec}")
+
+        self.player['hwdec'] = selected_hwdec
+        self.scan_folder(self.cli_path)
+        self.stack.setCurrentWidget(self.video_container)
+        self.player.play(self.cli_path)
+    # --------------------------------------
 
     # --- v6 Control Methods ---
     def toggle_playback(self):
@@ -339,35 +392,60 @@ class HardPlayerWindow(QMainWindow):
 
     def play_youtube(self, yt_url):
         """Handles fetching YouTube formats, asking for HWDEC, and initiating playback."""
-        quality_dialog = YouTubeQualityDialog(yt_url, self)
-        if quality_dialog.exec() == QDialog.DialogCode.Accepted:
-            format_code = quality_dialog.format_code
-            
+        
+        format_code = None
+        selected_hwdec = "no"
+
+        # --- 1. التحقق المستقل من الجودة ---
+        if self.cli_quality and self.cli_quality in self.quality_map:
+            format_code = self.quality_map[self.cli_quality]
+            print(f"[*] ⚡ Fast Track: YouTube Quality forced to '{self.cli_quality}'")
+        else:
+            quality_dialog = YouTubeQualityDialog(yt_url, self)
+            if quality_dialog.exec() == QDialog.DialogCode.Accepted:
+                format_code = quality_dialog.format_code
+            else:
+                return # المستخدم أغلق النافذة
+                
+        # --- 2. التحقق المستقل من العتاد ---
+        if self.cli_device and self.cli_device in DEVICE_MAP:
+            selected_hwdec = DEVICE_MAP[self.cli_device]
+            print(f"[*] ⚡ Fast Track: Hardware Decoding forced to '{self.cli_device}'")
+        else:
             decoding_dialog = DecodingDialog(self)
             if decoding_dialog.exec() == QDialog.DialogCode.Accepted:
                 selected_hwdec = decoding_dialog.selected_hwdec
+            else:
+                return # المستخدم أغلق النافذة
                 
-                print(f"\n{'-'*60}\n[*] 🌐 YouTube URL: {yt_url}\n[*] 🍿 Format Selected: {format_code}\n[*] 🖥️  Hardware Decoding: {selected_hwdec}")
-                
-                self.player['hwdec'] = selected_hwdec
-                self.player['ytdl'] = True
-                self.player['ytdl-format'] = format_code
-                
-                self.playlist = [yt_url]
-                self.current_index = 0
-                self.stack.setCurrentWidget(self.video_container)
-                
-                print(f"[*] ▶️  Passing to MPV Engine...\n{'-'*60}\n")
-                self.player.play(yt_url)
+        # --- 3. التشغيل الفعلي ---
+        print(f"\n{'-'*60}\n[*] 🌐 YouTube URL: {yt_url}\n[*] 🍿 Format Selected: {format_code}\n[*] 🖥️  Hardware Decoding: {selected_hwdec}")
+        
+        self.player['hwdec'] = selected_hwdec
+        self.player['ytdl'] = True
+        self.player['ytdl-format'] = format_code
+        
+        self.playlist = [yt_url]
+        self.current_index = 0
+        self.stack.setCurrentWidget(self.video_container)
+        
+        # تعطيل الفيديو إذا كان الخيار صوت فقط
+        if self.cli_quality == 'audio':
+            self.player['vid'] = 'no'
+        else:
+            self.player['vid'] = 'auto'
 
-                def check_hwdec_status():
-                    current_hwdec = getattr(self.player, 'hwdec_current', 'no')
-                    v_codec = getattr(self.player, 'video_format', 'Unknown')
-                    print(f"[*] 🎞️  Detected Video Codec: {str(v_codec).upper()}")
-                    
-                    if selected_hwdec != "no" and current_hwdec == "no":
-                        print(f"\n\033[93m[⚠️ WARNING] Falling back to CPU.\033[0m\n")
-                    elif current_hwdec != "no":
-                        print(f"\n\033[92m[✅ SUCCESS] Playing via GPU using '{current_hwdec}'.\033[0m\n")
+        print(f"[*] ▶️  Passing to MPV Engine...\n{'-'*60}\n")
+        self.player.play(yt_url)
 
-                QTimer.singleShot(1500, check_hwdec_status)
+        def check_hwdec_status():
+            current_hwdec = getattr(self.player, 'hwdec_current', 'no')
+            v_codec = getattr(self.player, 'video_format', 'Unknown')
+            print(f"[*] 🎞️  Detected Video Codec: {str(v_codec).upper()}")
+            
+            if selected_hwdec != "no" and current_hwdec == "no":
+                print(f"\n\033[93m[⚠️ WARNING] Falling back to CPU.\033[0m\n")
+            elif current_hwdec != "no":
+                print(f"\n\033[92m[✅ SUCCESS] Playing via GPU using '{current_hwdec}'.\033[0m\n")
+
+        QTimer.singleShot(1500, check_hwdec_status)
