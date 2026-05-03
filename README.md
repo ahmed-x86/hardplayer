@@ -1,4 +1,4 @@
-# 🎬 HardPlayer (v12.0.0) — "Open With" Integration & Power CLI 🚀📁
+# 🎬 HardPlayer (13.0.0) — Hardware Intelligence
 
 A lightweight, high-performance modular media player built with **Python**, **PyQt6**, and the **MPV Engine**. Version 12.0.0 brings HardPlayer directly to your fingertips with native system-wide "Open With" context menu integration, alongside a robust Command Line Interface (CLI) that allows you to bypass UI dialogs, force hardware decoding, and search YouTube directly from your terminal, all while maintaining its minimalistic, **Catppuccin Mocha** aesthetic.
 
@@ -8,6 +8,11 @@ Built for Linux ricing enthusiasts who demand both beauty and performance. Compi
 ![Platform](https://img.shields.io/badge/Platform-Linux%20-lightgrey)
 ![Version](https://img.shields.io/badge/Version-12.0.0-mauve)
 ![Theme](https://img.shields.io/badge/Theme-Catppuccin%20Mocha-blue)
+
+## ✨ What's New in v13.0?
+- **Hardware Intelligence:** New "Hardware (Default)" top menu bar. Configure your GPU preferences once and HardPlayer will cache them via `~/.cache/hardplayer/hw.txt`.
+- **UI Asset Fix:** Resolved missing logo/icon issues across all distributions.
+- **Easy Reset:** Added a one-click "Reset HW Default" option in the menu to clear preferences instantly.
 
 ## ✨ What's New in v12.0?
 - **"Open With" Context Menu:** HardPlayer now natively appears in your file manager's right-click menu (Nautilus, Dolphin, Thunar, etc.) for instant, seamless playback of all supported video and audio formats.
