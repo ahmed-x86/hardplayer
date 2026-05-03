@@ -5,6 +5,7 @@ Since we moved to the **MPV Engine**, the old `qt6-multimedia` packages are no l
 
 ```bash
 sudo pacman -S mpv ffmpeg yt-dlp dbus gobject-introspection cairo pkgconf
+sudo pacman -S aria2
 ```
 
 *Note: `mpv` provides the core rendering engine, `yt-dlp` handles YouTube streaming, and the rest (`dbus`, `gobject-introspection`, `cairo`, `pkgconf`) are required to build and run the system integration components.*
