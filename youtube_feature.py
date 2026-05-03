@@ -9,6 +9,9 @@ from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
 from PyQt6.QtCore import QTimer, Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QFont, QPixmap
 
+# التوصيل بملفك الجديد لاستخراج الصور المصغرة
+from get_youtube_thumbnail import get_youtube_thumbnail
+
 class YouTubeQualityDialog(QDialog):
     def __init__(self, yt_url, parent=None):
         super().__init__(parent)
@@ -172,6 +175,7 @@ class YouTubeSearchDialog(QDialog):
         card_layout.setSpacing(15)
         
         video_id = video.get('id', '')
+        link = video.get('webpage_url', f"https://www.youtube.com/watch?v={video_id}")
         
         # 1. Video Thumbnail
         thumb_label = QLabel()
@@ -180,9 +184,10 @@ class YouTubeSearchDialog(QDialog):
         thumb_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         thumb_label.setText("Loading...")
         
-        if video_id:
-            # Fallback to standard YouTube high-quality thumbnail endpoint
-            thumb_url = f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg"
+        # استخدام الدالة الخارجية لجلب رابط الصورة المصغرة بناءً على الرابط
+        thumb_url = get_youtube_thumbnail(link)
+        
+        if thumb_url:
             fetcher = ImageFetcher(thumb_url, f"vid_{video_id}")
             fetcher.image_fetched.connect(lambda vid, data, lbl=thumb_label: self.update_image(lbl, data, 160, 90))
             fetcher.start()
@@ -259,7 +264,6 @@ class YouTubeSearchDialog(QDialog):
             QPushButton { background-color: #a6e3a1; color: #11111b; font-weight: bold; border-radius: 5px; }
             QPushButton:hover { background-color: #94e2d5; }
         """)
-        link = video.get('webpage_url', f"https://www.youtube.com/watch?v={video_id}")
         play_btn.clicked.connect(lambda checked, url=link: self.select_video(url))
         
         card_layout.addWidget(play_btn)
