@@ -5,22 +5,27 @@ import glob
 import threading
 import mpv
 
-# --- الإضافة الجديدة للتعامل مع ملفات الكاش ---
+# --- New addition for handling cache files ---
 from pathlib import Path
 # ----------------------------------------------
 
-from PyQt6.QtWidgets import QMainWindow, QStackedWidget, QWidget, QVBoxLayout, QLabel, QFileDialog, QDialog
-from PyQt6.QtCore import Qt, QTimer
-# تم إضافة QActionGroup للتحكم بعلامات الصح في القائمة المنسدلة
-from PyQt6.QtGui import QFont, QPixmap, QActionGroup
+# Import local thumbnail generator for v14
+from thumbnail_gen import get_local_thumbnail
+
+from PyQt6.QtWidgets import (QMainWindow, QStackedWidget, QWidget, QVBoxLayout, 
+                             QHBoxLayout, QLabel, QFileDialog, QDialog, 
+                             QScrollArea, QFrame, QSizePolicy, QPushButton)
+from PyQt6.QtCore import Qt, QTimer, QSize
+# QActionGroup added to manage checkmarks in the dropdown menu
+from PyQt6.QtGui import QFont, QPixmap, QActionGroup, QIcon
 
 # Import configurations and features from our other modules
 from config import BASE
 from mpris_feature import HardPlayerMPRIS
 from hw_decoding import DecodingDialog
-from hw_decoding import DEVICE_MAP # تمت الإضافة هنا لجلب خريطة الأجهزة للـ CLI
+from hw_decoding import DEVICE_MAP # Added here to fetch device map for CLI
 from youtube_feature import YouTubeQualityDialog, YouTubeSearchDialog
-# تم إضافة PlayerControlBar هنا
+# PlayerControlBar imported here
 from ui_components import AspectRatioContainer, InfoDialog, StartupDialog, PlayerControlBar
 
 try:
@@ -33,13 +38,13 @@ class HardPlayerWindow(QMainWindow):
     """
     The main application window that hosts the MPV player and manages media playback.
     """
-    # تم التعديل هنا: إضافة المتغيرات القادمة من cli_parser
+    # Modified: Added variables passed from cli_parser
     def __init__(self, cli_path=None, cli_device=None, cli_search=False, cli_quality=None):
         super().__init__()
         self.setWindowTitle("HardPlayer")
-        self.resize(800, 600)
+        self.resize(1000, 600) # Increased width slightly to accommodate the Playlist
 
-        # --- الإضافات الخاصة بحفظ أوامر التيرمنال ---
+        # --- CLI / Terminal command preservation additions ---
         self.cli_path = cli_path
         self.cli_device = cli_device
         self.cli_search = cli_search
@@ -54,12 +59,12 @@ class HardPlayerWindow(QMainWindow):
         }
         # ---------------------------------------------
         
-        # --- الإضافة الجديدة: إنشاء الشريط العلوي ---
+        # --- New addition: Setup the top menu bar ---
         self.setup_menu_bar()
         # --------------------------------------------
 
         # --- v6 UI Layout Setup ---
-        # تم تعطيل هذا السطر لكي يظهر شريط العتاد الجديد
+        # Line disabled to allow the new hardware bar to appear
         # self.setMenuBar(None) 
 
         self.central_widget = QWidget()
@@ -70,36 +75,47 @@ class HardPlayerWindow(QMainWindow):
         self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(0)
 
+        # --- v14: Restructuring content container for Sidebar Playlist ---
+        self.content_container = QWidget()
+        # This layout is dedicated to the stack (Video) to take full space
+        self.content_layout = QHBoxLayout(self.content_container)
+        self.content_layout.setContentsMargins(0, 0, 0, 0)
+        self.content_layout.setSpacing(0)
+
         # QStackedWidget allows switching between the logo and the video player
         self.stack = QStackedWidget()
-        self.main_layout.addWidget(self.stack)
+        self.content_layout.addWidget(self.stack)
 
-        # إضافة شريط التحكم السفلي v6
+        # Adding the new Sidebar for v14
+        self.setup_playlist_sidebar()
+        self.main_layout.addWidget(self.content_container)
+        # ------------------------------------------------------------------
+
+        # Adding the bottom control bar v6
         self.controls = PlayerControlBar(self)
         self.main_layout.addWidget(self.controls)
         
         # --- Logo Screen Setup ---
         self.logo_widget = QWidget()
         logo_layout = QVBoxLayout(self.logo_widget)
-        logo_layout.setAlignment(Qt.AlignmentFlag.AlignCenter) # توسيط المحتوى عمودياً
+        logo_layout.setAlignment(Qt.AlignmentFlag.AlignCenter) # Center content vertically
 
-        # إضافة أيقونة البرنامج من ملف icon_in_app.png
+        # Adding app icon from icon_in_app.png
         self.icon_label = QLabel()
         self.icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        pixmap = QPixmap("icon_in_app.png")
         
-        # --- الإضافة الجديدة لضمان قراءة الصورة من مجلد التثبيت دائماً وتخطي السطر السابق ---
+        # --- Addition: Ensure image is read from the installation directory ---
         base_dir = os.path.dirname(os.path.abspath(__file__))
         icon_path = os.path.join(base_dir, "icon_in_app.png")
         pixmap = QPixmap(icon_path)
-        # ------------------------------------------------------------------------------------
+        # ----------------------------------------------------------------------
 
         if not pixmap.isNull():
-            # تغيير حجم الصورة لـ 150x150 مع الحفاظ على التناسب والجودة
+            # Resize icon to 150x150 maintaining aspect ratio and smoothness
             self.icon_label.setPixmap(pixmap.scaled(150, 150, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
         logo_layout.addWidget(self.icon_label)
 
-        # عنوان البرنامج تحت الصورة
+        # App title under the image
         self.logo_label = QLabel("HardPlayer")
         self.logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.logo_label.setFont(QFont("Arial", 48, QFont.Weight.Bold))
@@ -155,16 +171,16 @@ class HardPlayerWindow(QMainWindow):
 
         # --- v6 Logic Connections ---
         self.controls.play_btn.clicked.connect(self.toggle_playback)
-        self.controls.stop_btn.clicked.connect(self.stop_playback) # تم التعديل للدالة الجديدة للرجوع للرئيسية
+        self.controls.stop_btn.clicked.connect(self.stop_playback) # Back to main screen
         self.controls.next_btn.clicked.connect(self.play_next)
         self.controls.prev_btn.clicked.connect(self.play_previous)
         self.controls.repeat_btn.clicked.connect(self.toggle_loop)
         self.controls.slider.sliderMoved.connect(self.seek_video)
 
-        # المتغير ده هيشتغل كقفل لمنع التايمر من التدخل وقت استخدام الكيبورد
+        # Keyboard seeking lock to prevent timer interference
         self._keyboard_seeking = False
 
-        # تايمر لتحديث الواجهة (شريط التقدم والوقت)
+        # UI Update Timer (Slider and Time labels)
         self.ui_timer = QTimer()
         self.ui_timer.timeout.connect(self.update_ui_state)
         self.ui_timer.start(500)
@@ -172,7 +188,7 @@ class HardPlayerWindow(QMainWindow):
         # Start the D-Bus/MPRIS service for system media integration
         self.start_mpris_service()
         
-        # --- تم التعديل هنا: إضافة شرط التيرمنال مع الحفاظ على السطر الأصلي ---
+        # --- CLI Launch handling ---
         if not self.cli_path:
             # Show the startup dialog shortly after the main window appears
             QTimer.singleShot(100, self.show_startup_dialog)
@@ -180,24 +196,24 @@ class HardPlayerWindow(QMainWindow):
             QTimer.singleShot(100, self.process_cli_launch)
 
     # =====================================================================
-    # --- دوال الشريط العلوي وملف الكاش الجديدة (HW Cache Logic) ---
+    # --- Menu Bar and Cache Logic Functions (HW Cache Logic) ---
     # =====================================================================
     def setup_menu_bar(self):
-        # تفعيل الشريط العلوي مجدداً بعد حذفه في v6 Layout
+        # Enable top menu bar
         menu_bar = self.menuBar()
         menu_bar.setStyleSheet("""
             QMenuBar { background-color: #11111b; color: #cdd6f4; font-size: 13px; }
             QMenuBar::item:selected { background-color: #313244; border-radius: 4px; }
             QMenu { background-color: #1e1e2e; color: #cdd6f4; border: 1px solid #313244; font-size: 13px; }
             QMenu::item:selected { background-color: #313244; }
-            /* --- تمت إضافة التنسيق الجديد لتلوين علامة الصح والخيار المحدد بالأخضر --- */
+            /* Styling for checked items/green color for selected option */
             QMenu::item:checked { color: #a6e3a1; font-weight: bold; }
             QMenu::indicator { width: 13px; height: 13px; }
         """)
 
         hw_menu = menu_bar.addMenu("Hardware (Default) ⚙️")
 
-        # إنشاء ActionGroup لضمان أنه يمكن اختيار عتاد واحد فقط في كل مرة (مثل Radio Buttons)
+        # Exclusive ActionGroup for Radio Button behavior
         self.hw_action_group = QActionGroup(self)
         self.hw_action_group.setExclusive(True)
 
@@ -205,12 +221,9 @@ class HardPlayerWindow(QMainWindow):
 
         for cli_name, hw_arg in DEVICE_MAP.items():
             action = hw_menu.addAction(f"Save: {cli_name} ({hw_arg})")
-            
-            # تفعيل خاصية علامة الصح (Checkable) للخيار
             action.setCheckable(True)
             self.hw_action_group.addAction(action)
             
-            # قراءة الكاش، وإذا كان الخيار متطابقاً، نضع علامة الصح عليه عند بدء البرنامج
             if saved_hwdec == hw_arg:
                 action.setChecked(True)
 
@@ -220,27 +233,42 @@ class HardPlayerWindow(QMainWindow):
         reset_action = hw_menu.addAction("Reset HW Default 🔄")
         reset_action.triggered.connect(self.reset_default_hwdec)
 
+        # --- v14: Playlist button on the far right as an icon only ---
+        self.playlist_btn = QPushButton("📜")
+        self.playlist_btn.setFixedWidth(50)
+        self.playlist_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.playlist_btn.setStyleSheet("""
+            QPushButton { 
+                background: transparent; 
+                color: #cdd6f4; 
+                font-size: 20px; 
+                border: none;
+                margin-right: 5px;
+            }
+            QPushButton:hover { color: #89b4fa; }
+        """)
+        self.playlist_btn.clicked.connect(self.toggle_playlist_sidebar)
+        
+        # Place button at the top-right corner of the MenuBar
+        menu_bar.setCornerWidget(self.playlist_btn, Qt.Corner.TopRightCorner)
+
     def save_default_hwdec(self, hw_arg):
         cache_dir = Path.home() / ".cache" / "hardplayer"
         cache_dir.mkdir(parents=True, exist_ok=True)
         hw_file = cache_dir / "hw.txt"
-        
-        # write_text تقوم بإنشاء الملف إذا لم يكن موجوداً، أو تحذفه وتكتب فوقه (Overwrite) إذا كان موجوداً
         hw_file.write_text(hw_arg, encoding="utf-8")
         print(f"\n[*] 💾 Saved Default HWDEC: '{hw_arg}' to {hw_file}")
 
     def reset_default_hwdec(self):
         hw_file = Path.home() / ".cache" / "hardplayer" / "hw.txt"
         if hw_file.exists():
-            hw_file.unlink() # يقوم بحذف الملف من الجهاز
-            print("\n[*] 🗑️ Reset Default HWDEC. The Dialog will show again on next playback.")
+            hw_file.unlink() 
+            print("\n[*] 🗑️ Reset Default HWDEC. Dialog will show again on next playback.")
         else:
             print("\n[*] ℹ️ No saved HWDEC found.")
             
-        # إزالة علامة الصح المرئية من القائمة المنسدلة
         checked_action = self.hw_action_group.checkedAction()
         if checked_action:
-            # يجب إيقاف الحصرية (Exclusive) مؤقتاً لنتمكن من إزالة الصح، ثم إعادتها
             self.hw_action_group.setExclusive(False)
             checked_action.setChecked(False)
             self.hw_action_group.setExclusive(True)
@@ -250,9 +278,165 @@ class HardPlayerWindow(QMainWindow):
         if hw_file.exists():
             return hw_file.read_text(encoding="utf-8").strip()
         return None
+
+    # --- v14: Playlist Sidebar Logic ---
+    def setup_playlist_sidebar(self):
+        # Playlist sidebar as an overlay child of content_container
+        self.playlist_sidebar = QFrame(self.content_container)
+        
+        # MAGIC FIX: Force the overlay to be a Native Window so it draws over the MPV Native Window
+        self.playlist_sidebar.setAttribute(Qt.WidgetAttribute.WA_NativeWindow)
+        
+        self.playlist_sidebar.setFixedWidth(300)
+        
+        # Transparent overlay style
+        self.playlist_sidebar.setStyleSheet("""
+            QFrame { 
+                background-color: rgba(24, 24, 37, 230); 
+                border-left: 2px solid #313244; 
+            }
+        """)
+        self.playlist_sidebar.setVisible(False)
+        
+        sidebar_layout = QVBoxLayout(self.playlist_sidebar)
+        sidebar_layout.setContentsMargins(10, 10, 10, 10)
+        
+        title = QLabel("Media in Folder")
+        title.setFont(QFont("Arial", 12, QFont.Weight.Bold))
+        title.setStyleSheet("color: #cdd6f4; background: transparent; margin-bottom: 10px;")
+        sidebar_layout.addWidget(title)
+        
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setStyleSheet("border: none; background: transparent;")
+        
+        self.playlist_content = QWidget()
+        self.playlist_content.setStyleSheet("background: transparent;")
+        self.playlist_items_layout = QVBoxLayout(self.playlist_content)
+        self.playlist_items_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.playlist_items_layout.setSpacing(12)
+        
+        self.scroll_area.setWidget(self.playlist_content)
+        sidebar_layout.addWidget(self.scroll_area)
+        
+        # Notice: It is intentionally NOT added to the layout so it remains an absolute overlay
+
+    def resizeEvent(self, event):
+        """Update sidebar position and size on window resize for overlay effect"""
+        super().resizeEvent(event)
+        if hasattr(self, 'playlist_sidebar'):
+            # Dock sidebar to far right and take full content container height
+            w = 300
+            h = self.content_container.height()
+            x = self.content_container.width() - w
+            self.playlist_sidebar.setGeometry(x, 0, w, h)
+
+    def toggle_playlist_sidebar(self):
+        is_visible = self.playlist_sidebar.isVisible()
+        self.playlist_sidebar.setVisible(not is_visible)
+        if not is_visible:
+            # Raise sidebar to ensure visibility over video layer
+            self.playlist_sidebar.raise_()
+            self.populate_playlist_ui()
+
+    def populate_playlist_ui(self):
+        # Clear playlist content to prevent duplicates
+        while self.playlist_items_layout.count():
+            item = self.playlist_items_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        
+        # --- NEW ADDITION: Initialize Lazy Loading Variables ---
+        self.loaded_items_count = 0
+        self.load_more_btn = None
+        self.load_more_items()
+
+    def load_more_items(self):
+        """Loads items in batches of 6 to prevent UI freezing (Lazy Loading)"""
+        # Remove the 'Load More' button temporarily if it exists
+        if hasattr(self, 'load_more_btn') and self.load_more_btn:
+            self.playlist_items_layout.removeWidget(self.load_more_btn)
+            self.load_more_btn.deleteLater()
+            self.load_more_btn = None
+
+        start_index = getattr(self, 'loaded_items_count', 0)
+        end_index = min(start_index + 6, len(self.playlist))
+        batch = self.playlist[start_index:end_index]
+            
+        # for path in self.playlist:  # <-- ORIGINAL LINE DISABLED TO PREVENT FREEZE
+        for path in batch:            # <-- NEW LINE ADDED TO LOAD ONLY 6 VIDEOS AT A TIME
+            item_widget = QFrame()
+            item_widget.setCursor(Qt.CursorShape.PointingHandCursor)
+            item_widget.setStyleSheet("""
+                QFrame { background-color: #313244; border-radius: 8px; }
+                QFrame:hover { background-color: #45475a; }
+            """)
+            
+            h_layout = QHBoxLayout(item_widget)
+            h_layout.setContentsMargins(5, 5, 5, 5)
+            
+            # Thumbnail display
+            thumb_label = QLabel()
+            thumb_label.setFixedSize(80, 45)
+            thumb_path = get_local_thumbnail(path) if not path.startswith("http") else None
+            
+            if thumb_path and os.path.exists(thumb_path):
+                pix = QPixmap(thumb_path).scaled(80, 45, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+                thumb_label.setPixmap(pix)
+            else:
+                thumb_label.setText("🎬")
+                thumb_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                thumb_label.setStyleSheet("background-color: #11111b; color: #fab387; border-radius: 4px;")
+
+            # Filename formatting (Max 4 words per line)
+            name = os.path.basename(path)
+            words = name.split()
+            line1 = " ".join(words[:4])
+            line2 = ""
+            if len(words) > 4:
+                rem = words[4:]
+                if len(rem) > 2:
+                    line2 = " ".join(rem[:2]) + "..."
+                else:
+                    line2 = " ".join(rem)
+            
+            formatted_name = f"{line1}\n{line2}" if line2 else line1
+            
+            name_label = QLabel(formatted_name)
+            name_label.setStyleSheet("color: #cdd6f4; font-size: 11px; background: transparent;")
+            name_label.setWordWrap(True)
+            
+            h_layout.addWidget(thumb_label)
+            h_layout.addWidget(name_label, 1)
+            
+            # Connect click event to play file
+            item_widget.mousePressEvent = lambda e, p=path: self.play_from_sidebar(p)
+            
+            self.playlist_items_layout.addWidget(item_widget)
+
+        # --- NEW ADDITION: Update index and add the Load More button ---
+        self.loaded_items_count = end_index
+        
+        if self.loaded_items_count < len(self.playlist):
+            self.load_more_btn = QPushButton("Load More ⏬")
+            self.load_more_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.load_more_btn.setStyleSheet("""
+                QPushButton { background-color: #313244; color: #cdd6f4; border-radius: 8px; padding: 8px; font-weight: bold; }
+                QPushButton:hover { background-color: #45475a; color: #89b4fa; }
+            """)
+            self.load_more_btn.clicked.connect(self.load_more_items)
+            self.playlist_items_layout.addWidget(self.load_more_btn)
+
+    def play_from_sidebar(self, path):
+        print(f"[*] 🔄 Switching to: {path}")
+        self.player.stop()
+        if path.startswith("http"):
+            self.play_youtube(path)
+        else:
+            self.ask_for_decoding_and_play(path)
     # =====================================================================
 
-    # --- الإضافات الجديدة الخاصة بـ CLI ---
+    # --- CLI handling logic ---
     def process_cli_launch(self):
         if self.cli_search:
             self.search_youtube_and_play(self.cli_path)
@@ -290,9 +474,9 @@ class HardPlayerWindow(QMainWindow):
         self.player.pause = not self.player.pause
 
     def stop_playback(self):
-        """stop video and go back to main screen"""
-        self.player.stop()  # إيقاف محرك MPV
-        self.stack.setCurrentWidget(self.logo_widget)  # التبديل إلى شاشة الشعار (اللون #1e1e2e)
+        """Stop video and go back to main screen"""
+        self.player.stop()  # Stop MPV engine
+        self.stack.setCurrentWidget(self.logo_widget)  # Switch to logo screen
         print("[*] ⏹ Playback stopped, returning to main screen.")
 
     def toggle_loop(self):
@@ -318,17 +502,17 @@ class HardPlayerWindow(QMainWindow):
             duration = self.player.duration or 0
             current = self.player.time_pos
             
-            # تحديث السلايدر
+            # Update slider position
             if not self.controls.slider.isSliderDown() and not getattr(self, '_keyboard_seeking', False):
                 self.controls.slider.setMaximum(int(duration))
                 self.controls.slider.setValue(int(current))
             
-            # اكتشاف الساعات وإضافة مسافات جمالية
+            # Time format HH:MM:SS or MM:SS
             has_hours = duration >= 3600
             time_str = f"{self.format_time(current, has_hours)} / {self.format_time(duration, has_hours)}"
             self.controls.time_label.setText(time_str)
             
-            # تحديث أيقونة الزر ولونها بناءً على الثيم
+            # Update Play/Pause button styling
             if self.player.pause:
                 self.controls.play_btn.setText("▶")
                 self.controls.play_btn.setStyleSheet("color: #cdd6f4; background-color: #313244;")
@@ -364,7 +548,7 @@ class HardPlayerWindow(QMainWindow):
             if self.current_index < len(self.playlist) - 1:
                 self.current_index += 1
             else:
-                self.current_index = 0 # العودة لأول فيديو إذا وصلنا للنهاية
+                self.current_index = 0 # Return to first video if at end
             self.player.play(self.playlist[self.current_index])
 
     def play_previous(self):
@@ -373,15 +557,16 @@ class HardPlayerWindow(QMainWindow):
             if self.current_index > 0:
                 self.current_index -= 1
             else:
-                self.current_index = len(self.playlist) - 1 # الانتقال لآخر فيديو إذا كنا في البداية
+                self.current_index = len(self.playlist) - 1 # Go to last video if at start
             self.player.play(self.playlist[self.current_index])
 
     def scan_folder(self, current_file):
-        """Scans the directory of the selected file to build a local playlist."""
+        """Scans directory of selected file to build a local playlist."""
         try:
             folder = os.path.dirname(os.path.abspath(current_file))
             files = []
-            for ext in ('*.mp4', '*.mkv', '*.webm', '*.avi'):
+            # Filter for video extensions
+            for ext in ('*.mp4', '*.mkv', '*.webm', '*.avi', '*.ts', '*.m4v'):
                 files.extend(glob.glob(os.path.join(folder, ext)))
             self.playlist = sorted(files)
             self.current_index = self.playlist.index(os.path.abspath(current_file))
@@ -390,25 +575,25 @@ class HardPlayerWindow(QMainWindow):
             self.current_index = 0
 
     def keyPressEvent(self, event):
-        """Handles global keyboard shortcuts for the application."""
+        """Handles global keyboard shortcuts."""
         if event.key() == Qt.Key.Key_P:
-            # Press 'P' to open the media selection dialog (if idle)
+            # Press 'P' to open media selection dialog
             if getattr(self.player, 'core_idle', True): 
                 self.show_startup_dialog()
         elif event.key() == Qt.Key.Key_I:
-            # Press 'I' to show FFmpeg system information
+            # Press 'I' to show system/FFmpeg info
             self.show_info_dialog()
-        # إضافة دعم مفاتيح الأسهم للتقديم والتأخير باستخدام seek النيتيف
+        # Arrow keys for seeking
         elif event.key() == Qt.Key.Key_Left:
             self._keyboard_seeking = True
             self.player.seek(-5) 
-            QTimer.singleShot(800, self._reset_seek_flag) # فك القفل بعد 800 مللي ثانية
+            QTimer.singleShot(800, self._reset_seek_flag)
         elif event.key() == Qt.Key.Key_Right:
             self._keyboard_seeking = True
             self.player.seek(5)
             QTimer.singleShot(800, self._reset_seek_flag)
             
-        # --- التعديل هنا: إضافة دعم أزرار الميديا الخاصة بالكيبورد مع F7 و F8 و F9 كبدائل ---
+        # Support for media keys and F7, F8, F9 alternatives
         elif event.key() in (Qt.Key.Key_MediaNext, Qt.Key.Key_F9):
             self.play_next()
         elif event.key() in (Qt.Key.Key_MediaPrevious, Qt.Key.Key_F7):
@@ -425,18 +610,18 @@ class HardPlayerWindow(QMainWindow):
         self._keyboard_seeking = False
 
     def show_startup_dialog(self):
-        """Displays the startup dialog for selecting media."""
+        """Displays startup dialog for media selection."""
         StartupDialog(self).exec()
 
     def show_info_dialog(self):
-        """Displays the FFmpeg information dialog."""
+        """Displays FFmpeg information dialog."""
         InfoDialog(self).exec()
 
     def ask_for_decoding_and_play(self, source):
-        """Prompts the user for hardware decoding preferences and starts playback."""
+        """Prompts for hardware decoding preferences and starts playback."""
         print(f"\n{'-'*60}\n[*] 📂 Video Selected: {source}")
         
-        # --- الإضافة الجديدة: فحص الكاش قبل فتح الديالوج للهروب المبكر ---
+        # --- Check cache before opening dialog (Early escape) ---
         saved_hwdec = self.get_saved_hwdec()
         if saved_hwdec:
             print(f"[*] ⚡ Fast Track: Using Saved HWDEC '{saved_hwdec}'")
@@ -447,7 +632,7 @@ class HardPlayerWindow(QMainWindow):
             self.player.play(source)
             QTimer.singleShot(1500, lambda: print(f"[*] 🎞️ Playing via Saved Cache: {saved_hwdec}"))
             return
-        # -----------------------------------------------------------------
+        # ---------------------------------------------------------
 
         decoding_dialog = DecodingDialog(self)
         if decoding_dialog.exec() == QDialog.DialogCode.Accepted:
@@ -467,24 +652,22 @@ class HardPlayerWindow(QMainWindow):
                 print(f"[*] 🎞️  Detected Video Codec: {str(v_codec).upper()}")
                 
                 if selected_hwdec != "no" and current_hwdec == "no":
-                    print(f"\n\033[93m[⚠️ WARNING] Falling back to CPU. The GPU doesn't support hardware decoding for '{str(v_codec).upper()}'.\033[0m\n")
+                    print(f"\n\033[93m[⚠️ WARNING] Falling back to CPU. GPU doesn't support hardware decoding for '{str(v_codec).upper()}'.\033[0m\n")
                 elif current_hwdec != "no":
-                    print(f"\n\033[92m[✅ SUCCESS] Hardware decoding is active! Playing via GPU using '{current_hwdec}'.\033[0m\n")
+                    print(f"\n\033[92m[✅ SUCCESS] Hardware decoding active! Playing via GPU using '{current_hwdec}'.\033[0m\n")
 
-            # Wait 1.5 seconds for MPV to initialize playback before checking HWDEC status
             QTimer.singleShot(1500, check_hwdec_status)
 
     def browse_video(self):
-        """Opens a file dialog for the user to select a local video file."""
+        """Opens file dialog for video selection."""
         file_path, _ = QFileDialog.getOpenFileName(
             self, "Select Video File", "", "Video Files (*.mp4 *.mkv *.webm *.avi);;All Files (*)"
         )
         if file_path: 
             self.ask_for_decoding_and_play(file_path)
 
-    
     def search_youtube_and_play(self, query):
-        """Searches YouTube and plays the selected video."""
+        """Searches YouTube and plays selected video."""
         search_dialog = YouTubeSearchDialog(query, self)
         if search_dialog.exec() == QDialog.DialogCode.Accepted:
             selected_url = search_dialog.selected_url
@@ -492,12 +675,12 @@ class HardPlayerWindow(QMainWindow):
                 self.play_youtube(selected_url)
 
     def play_youtube(self, yt_url):
-        """Handles fetching YouTube formats, asking for HWDEC, and initiating playback."""
+        """Handles YouTube formats, HWDEC prompt, and playback initiation."""
         
         format_code = None
         selected_hwdec = "no"
 
-        # --- 1. التحقق المستقل من الجودة ---
+        # --- 1. Quality verification ---
         if self.cli_quality and self.cli_quality in self.quality_map:
             format_code = self.quality_map[self.cli_quality]
             print(f"[*] ⚡ Fast Track: YouTube Quality forced to '{self.cli_quality}'")
@@ -506,16 +689,16 @@ class HardPlayerWindow(QMainWindow):
             if quality_dialog.exec() == QDialog.DialogCode.Accepted:
                 format_code = quality_dialog.format_code
             else:
-                return # المستخدم أغلق النافذة
+                return
                 
-        # --- الإضافة الجديدة: فحص الكاش وحقنه ليتخطى الديالوج بخدعة بسيطة ---
+        # --- Check cache and inject to skip dialog ---
         saved_hwdec = self.get_saved_hwdec()
         if not self.cli_device and saved_hwdec:
             self.cli_device = "cached_hw"
             DEVICE_MAP["cached_hw"] = saved_hwdec
-        # --------------------------------------------------------------------
+        # ---------------------------------------------
 
-        # --- 2. التحقق المستقل من العتاد ---
+        # --- 2. Hardware verification ---
         if self.cli_device and self.cli_device in DEVICE_MAP:
             selected_hwdec = DEVICE_MAP[self.cli_device]
             print(f"[*] ⚡ Fast Track: Hardware Decoding forced to '{self.cli_device}'")
@@ -524,9 +707,9 @@ class HardPlayerWindow(QMainWindow):
             if decoding_dialog.exec() == QDialog.DialogCode.Accepted:
                 selected_hwdec = decoding_dialog.selected_hwdec
             else:
-                return # المستخدم أغلق النافذة
+                return
                 
-        # --- 3. التشغيل الفعلي ---
+        # --- 3. Actual initiation ---
         print(f"\n{'-'*60}\n[*] 🌐 YouTube URL: {yt_url}\n[*] 🍿 Format Selected: {format_code}\n[*] 🖥️  Hardware Decoding: {selected_hwdec}")
         
         self.player['hwdec'] = selected_hwdec
@@ -537,7 +720,7 @@ class HardPlayerWindow(QMainWindow):
         self.current_index = 0
         self.stack.setCurrentWidget(self.video_container)
         
-        # تعطيل الفيديو إذا كان الخيار صوت فقط
+        # Disable video if audio-only selected
         if self.cli_quality == 'audio':
             self.player['vid'] = 'no'
         else:
