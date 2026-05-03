@@ -68,15 +68,27 @@ class YouTubeSimpleQualityDialog(QDialog):
 
             # ترتيب الجودات من الأعلى للأقل (مثلاً: 1080, 720, 480...)
             sorted_heights = sorted(list(available_heights), reverse=True)
-            self.populate_buttons(sorted_heights)
+            # نمرر الـ formats الكاملة للوظيفة لاستخراج الصيغ لاحقاً
+            self.populate_buttons(sorted_heights, formats)
 
         except Exception as e:
             # في حالة حدوث خطأ، نعود للجودات الافتراضية
             print(f"[*] ⚠️ Error fetching dynamic qualities: {e}")
-            self.populate_buttons([1080, 720, 480, 360, 240, 144])
+            self.populate_buttons([1080, 720, 480, 360, 240, 144], [])
 
-    def populate_buttons(self, heights):
-        """Generates the UI buttons based on the fetched resolutions."""
+    def populate_buttons(self, heights, formats=None):
+        """Generates the UI buttons based on the fetched resolutions and preferred extension."""
+        if formats is None:
+            formats = []
+            
+        from pathlib import Path
+        
+        # قراءة الصيغة المفضلة من الكاش
+        pref_ext = None
+        ext_file = Path.home() / ".cache" / "hardplayer" / "youtube_video_ext.txt"
+        if ext_file.exists():
+            pref_ext = ext_file.read_text(encoding="utf-8").strip()
+
         # إزالة رسالة التحميل
         self.loading_lbl.deleteLater()
 
@@ -94,15 +106,45 @@ class YouTubeSimpleQualityDialog(QDialog):
         content_layout = QVBoxLayout(content_widget)
         content_layout.setSpacing(8)
 
-        # 1. زر الجودة التلقائية (الأفضل دائماً)
-        self.add_quality_button(content_layout, "🌟 Best Quality (Auto)", "bestvideo+bestaudio/best", "#a6e3a1", "#11111b")
+        # 1. زر الجودة التلقائية (مع احترام الصيغة المفضلة)
+        if pref_ext == "mp4":
+            best_code = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/bestvideo+bestaudio/best"
+        elif pref_ext:
+            best_code = f"bestvideo[ext={pref_ext}]+bestaudio/best[ext={pref_ext}]/bestvideo+bestaudio/best"
+        else:
+            best_code = "bestvideo+bestaudio/best"
+            
+        self.add_quality_button(content_layout, "🌟 Best Quality (Auto)", best_code, "#a6e3a1", "#11111b")
 
-        # 2. توليد أزرار الجودة المتوفرة فعلياً فقط
+        # 2. توليد أزرار الجودة المتوفرة
         for h in heights:
             emoji = "📺" if h >= 720 else ("📱" if h >= 360 else "🥔")
-            text = f"{emoji} {h}p"
-            # الفلتر يطلب هذه الجودة تحديداً أو أقل منها بقليل كأمان
-            code = f"bestvideo[height<={h}]+bestaudio/best"
+            
+            # -- التعديل الجديد لاكتشاف الصيغ المتاحة لهذه الدقة --
+            available_exts = set()
+            for f in formats:
+                if f.get('vcodec') != 'none' and f.get('height') == h:
+                    ext = f.get('ext')
+                    if ext:
+                        available_exts.add(ext)
+            
+            note = ""
+            # إذا كان هناك صيغة مفضلة ولم تكن موجودة في الصيغ المتاحة لهذه الدقة
+            if pref_ext and available_exts and (pref_ext not in available_exts):
+                # نحدد الصيغة البديلة التي سيتم اللجوء إليها (غالباً webm في الدقات العالية)
+                fallback_ext = "webm" if "webm" in available_exts else list(available_exts)[0]
+                note = f" ({fallback_ext} because not found {pref_ext})"
+                
+            text = f"{emoji} {h}p{note}"
+            
+            # بناء كود yt-dlp مع الصيغة المفضلة ومسار احتياطي (Fallback)
+            if pref_ext == "mp4":
+                code = f"bestvideo[height<={h}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={h}]+bestaudio/best"
+            elif pref_ext:
+                code = f"bestvideo[height<={h}][ext={pref_ext}]+bestaudio/bestvideo[height<={h}]+bestaudio/best"
+            else:
+                code = f"bestvideo[height<={h}]+bestaudio/best"
+                
             self.add_quality_button(content_layout, text, code)
 
         # 3. زر الصوت فقط
@@ -143,6 +185,7 @@ class YouTubeSimpleQualityDialog(QDialog):
                 border-radius: 6px; 
                 font-size: 13px; 
                 font-weight: bold;
+                text-align: left;
             }}
             QPushButton:hover {{ 
                 background-color: {bg_hover}; 
@@ -164,13 +207,21 @@ class YouTubeSimpleQualityDialog(QDialog):
 
 
 class YouTubeQualityDialog(QDialog):
-    def __init__(self, yt_url, parent=None):
+    def __init__(self, yt_url, mode="play", parent=None):
         super().__init__(parent)
         self.yt_url = yt_url
         self.format_code = "best"
-        self.setWindowTitle("YouTube Video Formats (Advanced)")
+        self.mode = mode  # تحديد وضع النافذة (تشغيل أم تحميل)
+        
+        # تغيير العنوان بناءً على الوضع
+        if self.mode == "download":
+            self.setWindowTitle("YouTube Video Formats (Download Mode)")
+        else:
+            self.setWindowTitle("YouTube Video Formats (Advanced)")
+            
         self.setFixedSize(850, 500)
         self.setModal(True)
+        self.setStyleSheet("background-color: #1e1e2e; color: #cdd6f4;")
         
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
@@ -183,19 +234,34 @@ class YouTubeQualityDialog(QDialog):
         self.info_text = QTextEdit(self)
         self.info_text.setReadOnly(True)
         self.info_text.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
+        self.info_text.setStyleSheet("background-color: #11111b; font-family: monospace; font-size: 13px; border-radius: 6px;")
         layout.addWidget(self.info_text)
         
         input_layout = QHBoxLayout()
         self.format_input = QLineEdit(self)
         self.format_input.setPlaceholderText("Enter format code (e.g., 299+140 or best)")
         self.format_input.setText("best")
+        self.format_input.setStyleSheet("background-color: #313244; padding: 8px; border-radius: 4px; border: 1px solid #45475a;")
         
-        self.play_btn = QPushButton("▶ Continue to Decoding")
-        self.play_btn.clicked.connect(self.accept_format)
+        # تغيير شكل ووظيفة الزر ديناميكياً
+        if self.mode == "download":
+            self.action_btn = QPushButton("📥 Download Video")
+            self.action_btn.setStyleSheet("""
+                QPushButton { background-color: #cba6f7; color: #11111b; font-weight: bold; padding: 8px 15px; border-radius: 4px; border: none; }
+                QPushButton:hover { background-color: #b4befe; }
+            """)
+        else:
+            self.action_btn = QPushButton("▶ Continue to Decoding")
+            self.action_btn.setStyleSheet("""
+                QPushButton { background-color: #89b4fa; color: #11111b; font-weight: bold; padding: 8px 15px; border-radius: 4px; border: none; }
+                QPushButton:hover { background-color: #b4befe; }
+            """)
+            
+        self.action_btn.clicked.connect(self.accept_format)
         
         input_layout.addWidget(QLabel("📝 Format Code:"))
         input_layout.addWidget(self.format_input)
-        input_layout.addWidget(self.play_btn)
+        input_layout.addWidget(self.action_btn)
         
         layout.addLayout(input_layout)
         
