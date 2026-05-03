@@ -1,9 +1,9 @@
-name: HardPlayer Evolution (v15.0.0)
+name: HardPlayer Evolution (v16.0.0)
 
 on:
   push:
     tags:
-      - 'v15*'
+      - 'v16*'
 
 permissions:
   contents: write
@@ -31,11 +31,11 @@ jobs:
       - name: Install Build Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install PyQt6 python-mpv nuitka zstandard ordered-set dbus-python "PyGObject<3.51.0"
+          pip install PyQt6 python-mpv nuitka zstandard ordered-set dbus-python "PyGObject<3.51.0" yt-dlp
 
       - name: Build with Nuitka & Setup Desktop Entry
         run: |
-          # Nuitka will automatically follow imports to the new modular files (playback_manager.py, cli_handler.py, etc.)
+          # Nuitka will automatically follow imports for all new modules (youtube_feature.py, ui_components.py, etc.)
           python -m nuitka --standalone --remove-output --enable-plugin=pyqt6 --follow-imports --assume-yes-for-downloads hardplayer.py
           
           rm -f hardplayer.dist/libssl.so* hardplayer.dist/libcrypto.so*
@@ -61,7 +61,7 @@ jobs:
           cat <<EOF > package_root/usr/share/applications/hardplayer.desktop
           [Desktop Entry]
           Name=HardPlayer
-          Comment=Modular & Fast Media Player with Dynamic YouTube Quality
+          Comment=Pro Media Player with Fast YouTube Downloader
           Exec=hardplayer %U
           Icon=hardplayer
           Terminal=false
@@ -73,28 +73,31 @@ jobs:
 
       - name: Generate Production Packages (DEB, RPM, Pacman)
         run: |
-          DESC="HardPlayer v15: Modular architecture refactoring for easier maintenance. Features a new Dynamic YouTube Quality UI (Simple & Advanced modes)."
+          DESC="HardPlayer v16: Introducing the Pro YouTube Downloader. Fetch videos with Aria2 acceleration, real-time speed monitoring, and advanced format selection."
           
-          fpm -s dir -t deb -n hardplayer -v 15.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
-          fpm -s dir -t rpm -n hardplayer -v 15.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
-          fpm -s dir -t pacman -n hardplayer -v 15.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
+          # Added aria2 as a dependency for high-speed downloads
+          fpm -s dir -t deb -n hardplayer -v 16.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d aria2 -C package_root .
+          fpm -s dir -t rpm -n hardplayer -v 16.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d aria2 -C package_root .
+          fpm -s dir -t pacman -n hardplayer -v 16.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d aria2 -C package_root .
 
       - name: Deploy Release Assets
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/v15')
+        if: startsWith(github.ref, 'refs/tags/v16')
         with:
-          name: HardPlayer v15.0.0 - Modular Refactor & Pro YouTube Flow 🚀
+          name: HardPlayer v16.0.0 - The YouTube Downloader Update 📥
           body: |
-            ### What's New in v15.0.0?
-            * **Modular Architecture:** The `main_window.py` has been dismantled into focused modules (`playback_manager.py`, `cli_handler.py`, etc.). This makes the code 100% easier to maintain and faster to load.
-            * **Dynamic YouTube Quality Flow:** * **Simple UI:** Automatically detects and displays only the resolutions available for that specific video.
-                * **Advanced Mode:** A fallback for pro-users who want to input manual format codes (e.g., `137+140`).
-            * **Performance Polish:** Decoupled the MPV engine logic from the UI thread to ensure zero-lag during heavy operations.
+            ### What's New in v16.0.0?
+            * **YouTube Video Downloader:** A fully integrated acquiring engine. No more copy-pasting to external tools.
+                * **Aria2 Acceleration:** Support for 16 parallel connections for ultra-fast acquiring.
+                * **Advanced Selection:** Choose between dynamic simple qualities or manual format IDs (Video ID + Audio ID).
+                * **Real-time Analytics:** Monitor download speed, fileside, and exact time left (ETA) directly in the UI.
+            * **Refined Progress System:** Re-designed progress bars with Catppuccin Green styling and Mauve-colored metrics for perfect visibility.
+            * **Metadata Extractor:** Automatically fetches uploader name, upload date, likes, and comment counts for every download.
             
-            **Technical Improvements:**
-            * Improved CLI handling for faster terminal launches.
-            * Cleaned up redundant CSS logic by centralizing themes in `styles.py`.
-            * Native Window ID (WID) management is now handled by the specialized `VideoSurface` module.
+            **Technical Fixes:**
+            * Fixed a crash when video metadata (likes/comments) was unavailable from YouTube API.
+            * Improved ANSI cleaning to ensure speed and progress text are clear in PyQt6.
+            * Optimized background threading for zero-freeze UI during active downloads.
           files: |
             *.deb
             *.rpm
