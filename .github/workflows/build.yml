@@ -1,9 +1,9 @@
-name: HardPlayer Evolution (v14.0.0)
+name: HardPlayer Evolution (v15.0.0)
 
 on:
   push:
     tags:
-      - 'v14*'
+      - 'v15*'
 
 permissions:
   contents: write
@@ -35,6 +35,7 @@ jobs:
 
       - name: Build with Nuitka & Setup Desktop Entry
         run: |
+          # Nuitka will automatically follow imports to the new modular files (playback_manager.py, cli_handler.py, etc.)
           python -m nuitka --standalone --remove-output --enable-plugin=pyqt6 --follow-imports --assume-yes-for-downloads hardplayer.py
           
           rm -f hardplayer.dist/libssl.so* hardplayer.dist/libcrypto.so*
@@ -60,7 +61,7 @@ jobs:
           cat <<EOF > package_root/usr/share/applications/hardplayer.desktop
           [Desktop Entry]
           Name=HardPlayer
-          Comment=VLC-Style Modular Player with Catppuccin Theme
+          Comment=Modular & Fast Media Player with Dynamic YouTube Quality
           Exec=hardplayer %U
           Icon=hardplayer
           Terminal=false
@@ -72,29 +73,28 @@ jobs:
 
       - name: Generate Production Packages (DEB, RPM, Pacman)
         run: |
-          DESC="HardPlayer v14: Introduces Floating Playlist Overlay, Lazy Loading for large directories, and improved local thumbnail extraction."
+          DESC="HardPlayer v15: Modular architecture refactoring for easier maintenance. Features a new Dynamic YouTube Quality UI (Simple & Advanced modes)."
           
-          fpm -s dir -t deb -n hardplayer -v 14.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
-          fpm -s dir -t rpm -n hardplayer -v 14.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
-          fpm -s dir -t pacman -n hardplayer -v 14.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
+          fpm -s dir -t deb -n hardplayer -v 15.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
+          fpm -s dir -t rpm -n hardplayer -v 15.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
+          fpm -s dir -t pacman -n hardplayer -v 15.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
 
       - name: Deploy Release Assets
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/v14')
+        if: startsWith(github.ref, 'refs/tags/v15')
         with:
-          name: HardPlayer v14.0.0 - Playlist Overlay & Lazy Loading 📜⚡
+          name: HardPlayer v15.0.0 - Modular Refactor & Pro YouTube Flow 🚀
           body: |
-            ### What's New in v14.0.0?
-            * **Floating Playlist Overlay (📜):** A new frameless, translucent sidebar overlay for managing local folder media directly inside the player window without altering the video aspect ratio.
-            * **Lazy Loading Engine (⚡):** Intelligently loads 6 videos at a time with a "Load More" button. This completely eliminates UI freezing when opening massive media directories.
-            * **Thumbnail Generator Polish:** Improved precision and handling for extracting local video thumbnails.
-            * *Notice: YouTube playlist integration is pending and currently not supported.*
+            ### What's New in v15.0.0?
+            * **Modular Architecture:** The `main_window.py` has been dismantled into focused modules (`playback_manager.py`, `cli_handler.py`, etc.). This makes the code 100% easier to maintain and faster to load.
+            * **Dynamic YouTube Quality Flow:** * **Simple UI:** Automatically detects and displays only the resolutions available for that specific video.
+                * **Advanced Mode:** A fallback for pro-users who want to input manual format codes (e.g., `137+140`).
+            * **Performance Polish:** Decoupled the MPV engine logic from the UI thread to ensure zero-lag during heavy operations.
             
-            **Previous Enhancements Included:**
-            * Persistent Hardware Caching (`~/.cache/hardplayer/hw.txt`).
-            * "Hardware (Default)" top menu configuration.
-            * Deep OS Integration ("Open With..." & System File Associations).
-            * Power CLI with explicit GPU and Quality overrides.
+            **Technical Improvements:**
+            * Improved CLI handling for faster terminal launches.
+            * Cleaned up redundant CSS logic by centralizing themes in `styles.py`.
+            * Native Window ID (WID) management is now handled by the specialized `VideoSurface` module.
           files: |
             *.deb
             *.rpm
