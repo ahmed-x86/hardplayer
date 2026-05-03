@@ -12,12 +12,156 @@ from PyQt6.QtGui import QFont, QPixmap
 # التوصيل بملفك الجديد لاستخراج الصور المصغرة
 from get_youtube_thumbnail import get_youtube_thumbnail
 
+class YouTubeSimpleQualityDialog(QDialog):
+    """
+    A simple, user-friendly dialog for selecting YouTube video quality.
+    Dynamically fetches only the available resolutions for the specific video.
+    """
+    def __init__(self, yt_url, parent=None):
+        super().__init__(parent)
+        self.yt_url = yt_url
+        self.format_code = None
+        self.setWindowTitle("Select Video Quality")
+        self.setFixedSize(350, 500)
+        self.setModal(True)
+        self.setStyleSheet("background-color: #1e1e2e; color: #cdd6f4;")
+
+        self.layout = QVBoxLayout(self)
+        self.layout.setSpacing(12)
+
+        # واجهة التحميل المبدئية
+        self.loading_lbl = QLabel("⏳ Fetching available qualities...\nPlease wait.")
+        self.loading_lbl.setFont(QFont("Arial", 12, QFont.Weight.Bold))
+        self.loading_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.layout.addWidget(self.loading_lbl)
+
+        # بدء عملية الجلب بعد ظهور النافذة مباشرة لتجنب تجميد الواجهة قبل الظهور
+        QTimer.singleShot(100, self.fetch_dynamic_qualities)
+
+    def fetch_dynamic_qualities(self):
+        """Fetches the video JSON metadata and extracts available resolutions."""
+        try:
+            # استخراج الـ JSON الخاص بالفيديو
+            result = subprocess.run(
+                ["yt-dlp", "--dump-json", "--no-warnings", self.yt_url],
+                capture_output=True, text=True, check=True
+            )
+            data = json.loads(result.stdout)
+            formats = data.get('formats', [])
+
+            available_heights = set()
+            
+            # فلترة الصيغ للبحث عن الـ Video Streams فقط
+            for f in formats:
+                vcodec = f.get('vcodec', 'none')
+                height = f.get('height')
+                # لو فيه كوديك فيديو وارتفاع محدد، نضيفه للقائمة
+                if vcodec != 'none' and height:
+                    available_heights.add(int(height))
+
+            # ترتيب الجودات من الأعلى للأقل (مثلاً: 1080, 720, 480...)
+            sorted_heights = sorted(list(available_heights), reverse=True)
+            self.populate_buttons(sorted_heights)
+
+        except Exception as e:
+            # في حالة حدوث خطأ، نعود للجودات الافتراضية
+            print(f"[*] ⚠️ Error fetching dynamic qualities: {e}")
+            self.populate_buttons([1080, 720, 480, 360, 240, 144])
+
+    def populate_buttons(self, heights):
+        """Generates the UI buttons based on the fetched resolutions."""
+        # إزالة رسالة التحميل
+        self.loading_lbl.deleteLater()
+
+        lbl = QLabel("🎥 Choose Video Quality:")
+        lbl.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.layout.addWidget(lbl)
+
+        # Scroll area في حال كانت الجودات المتوفرة كثيرة جداً
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("border: none; background: transparent;")
+        
+        content_widget = QWidget()
+        content_layout = QVBoxLayout(content_widget)
+        content_layout.setSpacing(8)
+
+        # 1. زر الجودة التلقائية (الأفضل دائماً)
+        self.add_quality_button(content_layout, "🌟 Best Quality (Auto)", "bestvideo+bestaudio/best", "#a6e3a1", "#11111b")
+
+        # 2. توليد أزرار الجودة المتوفرة فعلياً فقط
+        for h in heights:
+            emoji = "📺" if h >= 720 else ("📱" if h >= 360 else "🥔")
+            text = f"{emoji} {h}p"
+            # الفلتر يطلب هذه الجودة تحديداً أو أقل منها بقليل كأمان
+            code = f"bestvideo[height<={h}]+bestaudio/best"
+            self.add_quality_button(content_layout, text, code)
+
+        # 3. زر الصوت فقط
+        self.add_quality_button(content_layout, "🎵 Audio Only (MP3/M4A)", "bestaudio/best")
+
+        content_layout.addStretch()
+        scroll.setWidget(content_widget)
+        self.layout.addWidget(scroll)
+
+        # 4. زر الخيارات المتقدمة للمحترفين
+        self.adv_btn = QPushButton("⚙️ Advanced (Manual Code)")
+        self.adv_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.adv_btn.setStyleSheet("""
+            QPushButton { 
+                background-color: transparent; 
+                color: #f38ba8; 
+                padding: 10px; 
+                border-radius: 6px; 
+                border: 1px solid #f38ba8;
+                font-weight: bold;
+            }
+            QPushButton:hover { 
+                background-color: #f38ba8; 
+                color: #11111b; 
+            }
+        """)
+        self.adv_btn.clicked.connect(self.open_advanced)
+        self.layout.addWidget(self.adv_btn)
+
+    def add_quality_button(self, layout, text, code, bg_hover="#89b4fa", text_hover="#11111b"):
+        """Helper to create and style dynamic buttons."""
+        btn = QPushButton(text)
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn.setStyleSheet(f"""
+            QPushButton {{ 
+                background-color: #313244; 
+                padding: 10px; 
+                border-radius: 6px; 
+                font-size: 13px; 
+                font-weight: bold;
+            }}
+            QPushButton:hover {{ 
+                background-color: {bg_hover}; 
+                color: {text_hover}; 
+            }}
+        """)
+        btn.clicked.connect(lambda checked, c=code: self.select_format(c))
+        layout.addWidget(btn)
+
+    def select_format(self, code):
+        """Sets the format code and closes the simple dialog."""
+        self.format_code = code
+        self.accept()
+
+    def open_advanced(self):
+        """Signals the main window to open the advanced dialog."""
+        self.format_code = "ADVANCED"
+        self.accept()
+
+
 class YouTubeQualityDialog(QDialog):
     def __init__(self, yt_url, parent=None):
         super().__init__(parent)
         self.yt_url = yt_url
         self.format_code = "best"
-        self.setWindowTitle("YouTube Video Formats")
+        self.setWindowTitle("YouTube Video Formats (Advanced)")
         self.setFixedSize(850, 500)
         self.setModal(True)
         
