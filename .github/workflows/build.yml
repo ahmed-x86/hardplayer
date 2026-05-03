@@ -1,9 +1,9 @@
-name: HardPlayer Evolution (v9.0.0)
+name: HardPlayer Evolution (v10.0.0)
 
 on:
   push:
     tags:
-      - 'v9*'
+      - 'v10*'
 
 permissions:
   contents: write
@@ -70,25 +70,25 @@ jobs:
 
       - name: Generate Production Packages (DEB, RPM, Pacman)
         run: |
-          DESC="HardPlayer v9: Native YouTube search integration powered by yt-dlp, lightning-fast parsing, and visual result cards."
+          DESC="HardPlayer v10: Advanced MPRIS integration with rich media metadata and native cover art / thumbnail support for desktop environments."
           
-          # توليد الحزم بالإصدار الجديد 9.0.0
-          fpm -s dir -t deb -n hardplayer -v 9.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
-          fpm -s dir -t rpm -n hardplayer -v 9.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
-          fpm -s dir -t pacman -n hardplayer -v 9.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
+          # توليد الحزم بالإصدار الجديد 10.0.0
+          fpm -s dir -t deb -n hardplayer -v 10.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
+          fpm -s dir -t rpm -n hardplayer -v 10.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
+          fpm -s dir -t pacman -n hardplayer -v 10.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
 
       - name: Deploy Release Assets
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/v9')
+        if: startsWith(github.ref, 'refs/tags/v10')
         with:
-          name: HardPlayer v9.0.0 - The Search Revolution 🔍🚀
+          name: HardPlayer v10.0.0 - MPRIS Art & Desktop Integration 🖼️✨
           body: |
-            ### What's New in v9.0.0?
-            * **Native YouTube Search:** Directly search YouTube from within the application. Enter a query instead of a URL to instantly fetch the top 5 results.
-            * **Lightning-Fast Parsing:** Powered by `yt-dlp`'s `--flat-playlist` capability, delivering search results in milliseconds without heavy metadata extraction.
-            * **Visual Result Cards:** Search results are displayed in beautifully designed, Catppuccin-themed cards featuring asynchronous thumbnails (zero UI freezing), channel info, and descriptions.
-            * **Zero External Bloat:** Reliable native JSON extraction using `yt-dlp`, completely bypassing dependency hell from unstable third-party search libraries.
-            * **Unified Media Dialog:** The `P` shortcut is now a universal hub for local files, direct URLs, and YouTube searches.
+            ### What's New in v10.0.0?
+            * **Rich MPRIS Metadata:** Full integration with Linux desktop environments (Waybar, SwayNC, KDE, GNOME), now including **Cover Art / Thumbnails** for both local and online media.
+            * **Local Video Thumbnails:** Automatically extracts a high-quality frame from local videos using a lightning-fast `ffmpeg` seek strategy, without freezing the player.
+            * **Smart Thumbnail Caching:** Extracted local thumbnails are hashed and seamlessly cached to `~/.cache/hardplayer/thumbnails`, ensuring zero CPU overhead on replay.
+            * **YouTube Artwork Integration:** Directly fetches and displays high-quality YouTube thumbnails in your system's media widget when playing online content.
+            * Includes all previous v9 features (Native YouTube Search, fast parsing via `yt-dlp`, and Catppuccin-themed visual cards).
           files: |
             *.deb
             *.rpm
