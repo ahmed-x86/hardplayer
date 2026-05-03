@@ -1,9 +1,9 @@
-name: HardPlayer Evolution (v13.0.0)
+name: HardPlayer Evolution (v14.0.0)
 
 on:
   push:
     tags:
-      - 'v13*'
+      - 'v14*'
 
 permissions:
   contents: write
@@ -44,7 +44,7 @@ jobs:
           cp -r hardplayer.dist/* package_root/opt/hardplayer/
           mv package_root/opt/hardplayer/hardplayer.bin package_root/opt/hardplayer/hardplayer-bin
           
-          # نسخ الصورة لضمان ظهورها داخل البرنامج
+          # Copy icon to ensure it appears inside the app
           cp icon_in_app.png package_root/opt/hardplayer/
           
           echo '#!/bin/bash' > package_root/usr/bin/hardplayer
@@ -72,24 +72,29 @@ jobs:
 
       - name: Generate Production Packages (DEB, RPM, Pacman)
         run: |
-          DESC="HardPlayer v13: Hardware Intelligence Update with persistent decoding preferences, top-menu configuration, and refined UI asset handling."
+          DESC="HardPlayer v14: Introduces Floating Playlist Overlay, Lazy Loading for large directories, and improved local thumbnail extraction."
           
-          fpm -s dir -t deb -n hardplayer -v 13.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
-          fpm -s dir -t rpm -n hardplayer -v 13.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
-          fpm -s dir -t pacman -n hardplayer -v 13.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
+          fpm -s dir -t deb -n hardplayer -v 14.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
+          fpm -s dir -t rpm -n hardplayer -v 14.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
+          fpm -s dir -t pacman -n hardplayer -v 14.0.0 --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -C package_root .
 
       - name: Deploy Release Assets
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/v13')
+        if: startsWith(github.ref, 'refs/tags/v14')
         with:
-          name: HardPlayer v13.0.0 - Hardware Intelligence & UI Polish ⚙️🧠
+          name: HardPlayer v14.0.0 - Playlist Overlay & Lazy Loading 📜⚡
           body: |
-            ### What's New in v13.0.0?
-            * **Hardware Intelligence (MenuBar):** New "Hardware (Default)" top menu. Choose your preferred GPU acceleration once, and HardPlayer will remember it forever.
-            * **Persistent HW Caching:** Your decoding choice is saved to `~/.cache/hardplayer/hw.txt`. No more dialogs – just pure playback speed.
-            * **UI Polish:** Fixed missing logo assets across all installations by enforcing absolute paths in the build pipeline.
-            * **Easy Reset:** Added "Reset HW Default" in the menu to instantly clear your saved preferences.
-            * Includes all v12 "Open With" integration, v11 Power CLI, and thumbnail caching.
+            ### What's New in v14.0.0?
+            * **Floating Playlist Overlay (📜):** A new frameless, translucent sidebar overlay for managing local folder media directly inside the player window without altering the video aspect ratio.
+            * **Lazy Loading Engine (⚡):** Intelligently loads 6 videos at a time with a "Load More" button. This completely eliminates UI freezing when opening massive media directories.
+            * **Thumbnail Generator Polish:** Improved precision and handling for extracting local video thumbnails.
+            * *Notice: YouTube playlist integration is pending and currently not supported.*
+            
+            **Previous Enhancements Included:**
+            * Persistent Hardware Caching (`~/.cache/hardplayer/hw.txt`).
+            * "Hardware (Default)" top menu configuration.
+            * Deep OS Integration ("Open With..." & System File Associations).
+            * Power CLI with explicit GPU and Quality overrides.
           files: |
             *.deb
             *.rpm
