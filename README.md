@@ -1,20 +1,60 @@
-# 🎬 HardPlayer (v10.0.0) — MPRIS Art & Desktop Integration 🖼️✨
+# 🎬 HardPlayer (v11.0.0) — Power User CLI & Fast Launch 🚀💻
 
-A lightweight, high-performance modular media player built with **Python**, **PyQt6**, and the **MPV Engine**. Version 10.0.0 brings HardPlayer closer to your system than ever before with deep MPRIS2 integration, featuring native cover art and smart local caching, all while maintaining its minimalistic, **Catppuccin Mocha** aesthetic.
+A lightweight, high-performance modular media player built with **Python**, **PyQt6**, and the **MPV Engine**. Version 11.0.0 transforms HardPlayer into a Power User's dream, introducing a robust Command Line Interface (CLI) that allows you to bypass UI dialogs, force hardware decoding, and search YouTube directly from your terminal, all while maintaining its minimalistic, **Catppuccin Mocha** aesthetic.
 
 Built for Linux ricing enthusiasts who demand both beauty and performance. Compiled into a native binary using **Nuitka**.
 
 ![License](https://img.shields.io/badge/License-GPLv3-blue.svg)
 ![Platform](https://img.shields.io/badge/Platform-Linux%20-lightgrey)
-![Version](https://img.shields.io/badge/Version-10.0.0-mauve)
+![Version](https://img.shields.io/badge/Version-11.0.0-mauve)
 ![Theme](https://img.shields.io/badge/Theme-Catppuccin%20Mocha-blue)
 
-## ✨ What's New in v10.0?
-- **Rich MPRIS Metadata:** Full integration with Linux desktop environments (Waybar, SwayNC, KDE, GNOME). HardPlayer now seamlessly sends **Cover Art / Thumbnails** to your system widgets for both local and online media.
-- **Lightning-Fast Local Thumbnails:** Automatically extracts a high-quality frame from local videos using an optimized `ffmpeg` fast-seek strategy, ensuring zero UI freezing or playback stutter.
-- **Smart Thumbnail Caching:** Extracted local thumbnails are securely hashed and cached to `~/.cache/hardplayer/thumbnails`, guaranteeing zero CPU overhead when replaying your favorite videos.
-- **YouTube Artwork Integration:** Directly fetches and displays high-quality YouTube thumbnails in your system's media widget when streaming online content.
-- **Legacy v9 Search Engine:** Retains the lightning-fast, native YouTube search engine built entirely around `yt-dlp`'s `--flat-playlist` capability, complete with visual Catppuccin-themed result cards.
+## ✨ What's New in v11.0?
+- **Power User CLI:** Full terminal control! Launch media, search YouTube, and force hardware decoding directly from your command line.
+- **Fast Launch (UI Bypass):** Skip the startup and decoding dialogs entirely. Inject your preferences via arguments to instantly blast media straight to the MPV engine.
+- **Advanced HWDEC Mapping:** New custom device map including `-device old_nvidia` (maps to `cuda-copy`) for perfect hardware acceleration compatibility with older GPUs.
+- **Audio-Only Mode:** Save RAM and bandwidth by playing YouTube videos as music/podcasts using the `-quality audio` flag.
+- **Rich MPRIS Metadata (v10 Legacy):** Full integration with Linux desktop environments (Waybar, SwayNC) with **Cover Art / Thumbnails** caching.
+
+## 💻 CLI Documentation (v11 Power User Mode)
+HardPlayer v11 introduces a powerful terminal interface. You can mix and match flags to bypass UI dialogs entirely.
+
+### Available Flags:
+* `-device [cpu|intel|amd|nvidia|old_nvidia]` : Forces hardware decoding. (`old_nvidia` uses `cuda-copy` for legacy GPU compatibility).
+* `-quality [best|1080p|720p|480p|audio]` : Forces YouTube resolution. `audio` plays as a music stream without video.
+* `-search` : Treats the input path as a YouTube search query.
+
+### Usage Examples:
+
+**1. Fast Launch (Local File + Hardware Decoding)**
+*Bypasses the decoding dialog and launches the video immediately on the GPU.*
+```bash
+hardplayer /path/to/video.mp4 -device old_nvidia
+```
+
+**2. Fast Launch (YouTube + Quality + Decoding)**
+*Bypasses all dialogs and streams the URL directly with the requested settings.*
+```bash
+hardplayer "https://www.youtube.com/watch?v=test" -quality 1080p -device old_nvidia
+```
+
+**3. Direct YouTube Search**
+*Skips the startup dialog and jumps directly into the search results for the query.*
+```bash
+hardplayer -search "test"
+```
+
+**4. Audio-Only Mode (Podcasts)**
+*Disables video output to drastically save RAM and bandwidth. Great for background listening.*
+```bash
+hardplayer "https://www.youtube.com/watch?v=test" -quality audio
+```
+
+**5. Combined Search & Fast Launch**
+*Searches YouTube, and upon selecting a video, instantly plays it with the predefined settings without asking further questions.*
+```bash
+hardplayer -search "test" -quality 720p -device cpu
+```
 
 ## 🎨 UI & Philosophy
 - **Catppuccin Mocha:** A professional, eye-friendly dark interface.
@@ -26,7 +66,6 @@ Built for Linux ricing enthusiasts who demand both beauty and performance. Compi
 
 ## 🛠️ Core Features
 - **Flawless Keyboard Navigation:** Focus-stealing issues resolved. Left/Right arrow keys flawlessly seek (±5 seconds). Native support for standard and hardware media keys (F7, F8, F9 fallbacks included).
-- **Dynamic Time Formatting:** Adaptive UI that smartly transitions to `HH:MM:SS` for long videos.
 - **Advanced MPRIS2 Support:** Unmatched native Linux integration. Control your media and view stunning cover art via system trays, Waybar, or **KDE Connect**.
 - **Hardware Acceleration Mastery:** Specialized support for **NVIDIA (NVDEC)**, Intel, and AMD GPUs. Graceful CPU fallback if the GPU encounters an unsupported codec.
 - **Wayland-Native Performance:** Optimized for compositors like **Hyprland** and **Sway** with forced X11/EGL contexts where necessary to ensure window stability.
@@ -38,17 +77,17 @@ HardPlayer is and will always be **Linux-exclusive**. It leverages native Linux 
 
 ### Arch Linux (Pacman):
 ```bash
-sudo pacman -U hardplayer-10.0.0.pkg.tar.zst
+sudo pacman -U hardplayer-11.0.0.pkg.tar.zst
 ```
 
 ### Debian/Ubuntu (DEB):
 ```bash
-sudo dpkg -i hardplayer_10.0.0_amd64.deb
+sudo dpkg -i hardplayer_11.0.0_amd64.deb
 ```
 
 ### Development Run:
 ```bash
-git clone [https://github.com/ahmed-x86/hardplayer.git](https://github.com/ahmed-x86/hardplayer.git)
+git clone https://github.com/ahmed-x86/hardplayer.git
 cd hardplayer
 python3 hardplayer.py
 ```
