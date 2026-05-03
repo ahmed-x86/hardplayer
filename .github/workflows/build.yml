@@ -1,9 +1,9 @@
-name: HardPlayer Evolution (v18.0.1)
+name: HardPlayer Evolution (v19.0.0)
 
 on:
   push:
     tags:
-      - 'v18*'
+      - 'v19*'
 
 permissions:
   contents: write
@@ -18,8 +18,6 @@ jobs:
         include:
           - arch: x86_64
             os: ubuntu-latest
-          - arch: aarch64
-            os: ubuntu-24.04-arm64
 
     steps:
       - name: Checkout Code
@@ -29,7 +27,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-          # تمت إزالة الكاش من هنا لكي لا يبحث عن ملف requirements.txt ويفشل
 
       - name: Install OS Packaging Tools & Dependencies
         run: |
@@ -68,7 +65,7 @@ jobs:
           cat <<EOF > package_root/usr/share/applications/hardplayer.desktop
           [Desktop Entry]
           Name=HardPlayer
-          Comment=Pro Media Player with Optimized YouTube Playlist Support
+          Comment=Pro Media Player with Advanced YouTube Downloader
           Exec=hardplayer %U
           Icon=hardplayer
           Terminal=false
@@ -80,8 +77,8 @@ jobs:
 
       - name: Generate Production Packages (DEB, RPM, Pacman)
         run: |
-          DESC="HardPlayer v18: Optimized YouTube Playlist streaming & faster loading. Support for Multi-Arch (x86_64 & AArch64)."
-          VER="18.0.1"
+          DESC="HardPlayer v19: Advanced YouTube Downloader (Subtitles, Thumbnails, Chapters, Info) & Smart UI."
+          VER="19.0.0"
           ARCH="${{ matrix.arch }}"
           
           fpm -s dir -t deb -n hardplayer -v $VER -a $ARCH --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d aria2 -C package_root .
@@ -90,22 +87,21 @@ jobs:
 
       - name: Deploy Release Assets
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/v18')
+        if: startsWith(github.ref, 'refs/tags/v19')
         with:
-          name: HardPlayer v18.0.1 - YouTube Playlists & ARM Support 🚀
+          name: HardPlayer v19.0.0 - Advanced YouTube Downloader & Extras 🚀
           body: |
             ## 📥 Download Links
             | Architecture | Ubuntu / Debian | Fedora / Suse | Arch Linux |
             | :--- | :--- | :--- | :--- |
-            | **x86-64 (64-bit)** | [Download DEB](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer_18.0.1_x86_64.deb) | [Download RPM](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-18.0.1-1.x86_64.rpm) | [Download Pacman](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-18.0.1-1-x86_64.pkg.tar.zst) |
-            | **AArch64 (ARM64)** | [Download DEB](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer_18.0.1_aarch64.deb) | [Download RPM](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-18.0.1-1.aarch64.rpm) | [Download Pacman](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-18.0.1-1-aarch64.pkg.tar.zst) |
+            | **x86-64 (64-bit)** | [Download DEB](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer_19.0.0_x86_64.deb) | [Download RPM](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-19.0.0-1.x86_64.rpm) | [Download Pacman](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-19.0.0-1-x86_64.pkg.tar.zst) |
 
             ---
             
-            ### What's New in v18.0.1?
-            * **YouTube Playlist Optimization:** تحسين جذري في تشغيل قوائم التشغيل. الآن يتم جلب بيانات أول فيديو فوراً لبدء التشغيل بدون انتظار تحميل القائمة كاملة.
-            * **Multi-Arch Support:** لأول مرة، HardPlayer متاح رسمياً لمعماريات **AArch64** ليعمل بكفاءة على أجهزة ARM.
-            * **Faster Loading Speed:** تم تحسين استخراج بيانات `yt-dlp` لتقليل زمن الانتظار.
+            ### What's New in v19.0.0?
+            * **Advanced YouTube Downloader:** تمت ترقية نظام التحميل ليصبح أداة متكاملة. الآن أصبح بإمكانك تحميل الترجمات (Subtitles)، الصور المصغرة (Thumbnails)، دمج الفصول (Chapters)، وحفظ بيانات الفيديو، ولم يعد يقتصر على تحميل الفيديو فقط!
+            * **Smart Subtitle Fetching:** نظام ذكي لسحب الترجمات (الإنجليزية والعربية افتراضياً) لتجنب حظر IP (Error 429) من يوتيوب.
+            * **Enhanced Download UI:** واجهة مخصصة لاختيار الميزات الإضافية قبل التحميل، مع إمكانية إيقاف التحميل بأمان ومسح الملفات غير المكتملة.
           files: |
             *.deb
             *.rpm
