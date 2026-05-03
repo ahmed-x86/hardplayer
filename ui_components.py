@@ -842,3 +842,4 @@ class YouTubeURLDialog(QDialog):
         selector = QualitySelectorDialog(info, self.parent())
         selector.show()
         self.accept()
+        

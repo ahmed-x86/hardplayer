@@ -640,3 +640,4 @@ class DownloadWorker(QThread):
                                     pass
         except Exception as e:
             print(f"[*] ⚠️ Download Worker Error: {e}")
+            

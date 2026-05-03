@@ -11,6 +11,7 @@ Developed by **Ahmed (ahmed-x86)**, this player follows the "KISS" philosophy, s
 ![Version](https://img.shields.io/badge/Version-19.0.0-mauve)
 ![Theme](https://img.shields.io/badge/Theme-Catppuccin%20Mocha-blue)
 
+
 ---
 
 ## 📥 Download Links (Release Assets)
