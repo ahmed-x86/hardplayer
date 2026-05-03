@@ -1,8 +1,25 @@
-# 🎬 HardPlayer (17.0.0) — Smart Formats & Unified UI
+# 🎬 HardPlayer (18.0.0) — YouTube Playlists & ARM Support 🚀
 
 HardPlayer is a lightweight, high-performance modular media player built with **Python**, **PyQt6**, and the **MPV Engine**. It combines native system integration with a sleek **Catppuccin Mocha** aesthetic and a pro-grade YouTube acquisition engine.
 
-Developed by **Ahmed (ahmed-x86)**, this player follows the "KISS" philosophy, specifically optimized for the Arch Linux ecosystem.
+Developed by **Ahmed (ahmed-x86)**, this player follows the "KISS" philosophy, specifically optimized for the Linux ecosystem.
+
+---
+
+## 📥 Download Links (Release Assets)
+
+| Architecture | Ubuntu / Debian (DEB) | Fedora / Suse (RPM) | Arch Linux (Pacman) |
+| :--- | :--- | :--- | :--- |
+| **x86-64 (64-bit)** | [Download DEB](https://github.com/ahmed-x86/hardplayer/releases/download/v18.0.0/hardplayer_18.0.0_x86_64.deb) | [Download RPM](https://github.com/ahmed-x86/hardplayer/releases/download/v18.0.0/hardplayer-18.0.0-1.x86_64.rpm) | [Download Pacman](https://github.com/ahmed-x86/hardplayer/releases/download/v18.0.0/hardplayer-18.0.0-1-x86_64.pkg.tar.zst) |
+| **AArch64 (ARM64)** | [Download DEB](https://github.com/ahmed-x86/hardplayer/releases/download/v18.0.0/hardplayer_18.0.0_aarch64.deb) | [Download RPM](https://github.com/ahmed-x86/hardplayer/releases/download/v18.0.0/hardplayer-18.0.0-1.aarch64.rpm) | [Download Pacman](https://github.com/ahmed-x86/hardplayer/releases/download/v18.0.0/hardplayer-18.0.0-1-aarch64.pkg.tar.zst) |
+
+---
+
+## ✨ What's New in v18.0?
+* **YouTube Playlist Optimization**: Radical improvement in playlist handling. The player now fetches the first video's data immediately to start playback without waiting for the entire playlist to load.
+* **Multi-Arch Support**: For the first time, HardPlayer is officially available for **AArch64 (ARM64)** architectures, allowing it to run efficiently on Raspberry Pi and ARM-based laptops.
+* **Sidebar Persistence Fix**: Resolved the issue where the sidebar playlist would disappear when selecting a video. The list now remains visible with an updated playback index.
+* **Faster Loading Engine**: Reduced data extraction time using optimized `yt-dlp` and `oEmbed` calls to open links faster than ever.
 
 ---
 
@@ -24,13 +41,13 @@ Developed by **Ahmed (ahmed-x86)**, this player follows the "KISS" philosophy, s
 ---
 
 ## 🧩 Previous Highlights (v15.0)
-* **Modular Refactor**: Decoupled `playback_manager.py` and `cli_handler.py` to ensure the UI thread remains 100% lag-free.
+* **Modular Refactor**: Decoupled core components to ensure the UI thread remains 100% lag-free.
 * **Dynamic Quality Flow**: A smart dialog that detects actual available resolutions for any YouTube video before playback.
-* **Lazy Loading Engine**: batches of 6 media items are loaded to prevent freezes in large directories.
+* **Lazy Loading Engine**: Batches of 6 media items are loaded to prevent freezes in large directories.
 
 ---
 
-## 🛠️ Development & Quick Run (New!)
+## 🛠️ Development & Quick Run
 HardPlayer provides easy methods for testing and development:
 
 **clone the repo**
@@ -95,13 +112,13 @@ hardplayer -search "test" -quality 720p -device cpu
 ### Arch Linux (Pacman):
 ```bash
 sudo pacman -S aria2  # Required for high-speed downloads
-sudo pacman -U hardplayer-17.0.0.pkg.tar.zst
+sudo pacman -U hardplayer-18.0.0-1-x86_64.pkg.tar.zst
 ```
 
 ### Debian/Ubuntu (DEB):
 ```bash
 sudo apt install aria2
-sudo dpkg -i hardplayer_17.0.0_amd64.deb
+sudo dpkg -i hardplayer_18.0.0_x86_64.deb
 ```
 
 ## 📦 Requirements
