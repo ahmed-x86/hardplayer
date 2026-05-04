@@ -8,7 +8,7 @@ Developed by **Ahmed (ahmed-x86)**, this player follows the "KISS" philosophy, s
 
 ![License](https://img.shields.io/badge/License-GPLv3-blue.svg)
 ![Platform](https://img.shields.io/badge/Platform-Linux%20-lightgrey)
-![Version](https://img.shields.io/badge/Version-20.0.0-mauve)
+![Version](https://img.shields.io/badge/Version-21.0.0-mauve)
 ![Theme](https://img.shields.io/badge/Theme-Catppuccin%20Mocha-blue)
 
 
@@ -18,9 +18,14 @@ Developed by **Ahmed (ahmed-x86)**, this player follows the "KISS" philosophy, s
 
 | Architecture | Ubuntu / Debian (DEB) | Fedora / Suse (RPM) | Arch Linux (Pacman) |
 | :--- | :--- | :--- | :--- |
-| **x86-64 (64-bit)** | [Download DEB](https://github.com/ahmed-x86/hardplayer/releases/download/v20.0.0/hardplayer_20.0.0_x86_64.deb) | [Download RPM](https://github.com/ahmed-x86/hardplayer/releases/download/v20.0.0/hardplayer-20.0.0-1.x86_64.rpm) | [Download Pacman](https://github.com/ahmed-x86/hardplayer/releases/download/v20.0.0/hardplayer-20.0.0-1-x86_64.pkg.tar.zst) |
+| **x86-64 (64-bit)** | [Download DEB](https://github.com/ahmed-x86/hardplayer/releases/download/v21.0.0/hardplayer_21.0.0_amd64.deb) | [Download RPM](https://github.com/ahmed-x86/hardplayer/releases/download/v21.0.0/hardplayer-21.0.0-1.x86_64.rpm) | [Download Pacman](https://github.com/ahmed-x86/hardplayer/releases/download/v21.0.0/hardplayer-21.0.0-1-x86_64.pkg.tar.zst) |
 
 ---
+
+## ✨ What's New in v21.0.0?
+
+* **UX Improvements**: Fully reorganized the top menus (Hardware and YouTube) using cascading sub-menus for a cleaner, more intuitive interface.
+* **Custom Download Location**: Added a new feature to select and save a specific directory for YouTube videos and metadata info (.txt) files directly from the top menu.
 
 ## ✨ What's New in v20.0.0?
 * **Universal Subtitles**: We have added a translation feature that works for audio and video from the device or YouTube.
