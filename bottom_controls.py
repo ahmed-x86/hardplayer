@@ -35,6 +35,7 @@ class PlayerControlBar(QFrame):
     prev_clicked = pyqtSignal()
     repeat_toggled = pyqtSignal()
     seek_requested = pyqtSignal(int)
+    subtitle_toggled = pyqtSignal() # إشارة زر الترجمة الجديد
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -92,18 +93,25 @@ class PlayerControlBar(QFrame):
 
         self.play_btn = QPushButton("▶")
         self.repeat_btn = QPushButton("🔁 ✖") 
+        self.subtitles_btn = QPushButton("💬 CC") # زر الترجمة الجديد
+        
         self.play_btn.setFixedWidth(55)
         self.repeat_btn.setFixedWidth(75)
+        self.subtitles_btn.setFixedWidth(65)
+        
         self.play_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.repeat_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.subtitles_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
 
         # Restored NoFocus to prevent seeking glitches
         self.play_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.repeat_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.subtitles_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
         # Connect signals
         self.play_btn.clicked.connect(self.play_toggled.emit)
         self.repeat_btn.clicked.connect(self.repeat_toggled.emit)
+        self.subtitles_btn.clicked.connect(self.subtitle_toggled.emit) # ربط الزر بالإشارة
 
         # Restored the custom ClickableSlider
         self.slider = ClickableSlider(Qt.Orientation.Horizontal)
@@ -115,6 +123,7 @@ class PlayerControlBar(QFrame):
         self.time_label.setFixedWidth(160)
         self.time_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
+        # أزرار التحكم بالمسار
         self.stop_btn = QPushButton("⏹")
         self.prev_btn = QPushButton("⏮")
         self.next_btn = QPushButton("⏭")
@@ -130,13 +139,31 @@ class PlayerControlBar(QFrame):
             # Restored NoFocus
             btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
+        # ترتيب العناصر في الـ Layout كما طلبت (زر الترجمة على اليمين)
         layout.addWidget(self.play_btn)
         layout.addWidget(self.repeat_btn)
         layout.addWidget(self.slider, 1)
         layout.addWidget(self.time_label)
-        layout.addWidget(self.stop_btn)
-        layout.addWidget(self.prev_btn)
-        layout.addWidget(self.next_btn)
+        layout.addWidget(self.subtitles_btn) # نقل زر الترجمة هنا
+        layout.addWidget(self.prev_btn)      # السابق أولاً
+        layout.addWidget(self.stop_btn)      # إيقاف في المنتصف
+        layout.addWidget(self.next_btn)      # التالي أخيراً
+
+    # الدالة الجديدة للتحكم في لون زر الترجمة
+    def set_subtitle_status(self, is_active):
+        """تحديث لون زر الترجمة بناءً على حالتها"""
+        if is_active:
+            self.subtitles_btn.setStyleSheet("""
+                QPushButton {
+                    color: #a6e3a1; 
+                    border: 1px solid #a6e3a1; 
+                    background-color: #313244;
+                    font-weight: bold;
+                }
+            """)
+        else:
+            # مسح الستايل المخصص ليعود للشكل الافتراضي
+            self.subtitles_btn.setStyleSheet("")
 
     def set_repeat_status(self, is_active):
         """Original logic for toggling the repeat button visuals."""
