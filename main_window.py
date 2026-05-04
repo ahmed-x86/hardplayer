@@ -204,8 +204,41 @@ class HardPlayerWindow(QMainWindow):
             log_handler=custom_mpv_logger
         )
 
+        # ==========================================
+        # --- فرض نافذة الفيديو لتعمل الترجمة مع الصوتيات ---
+        # ==========================================
+        self.player['force-window'] = 'yes'
+
         self.loop_enabled = False
         self.player['loop-file'] = 'no'
+        
+        # --- إضافة: السماح بالبحث التلقائي عن ملفات الترجمة ---
+        self.player['sub-auto'] = 'fuzzy'
+
+        # --- تخصيص شكل الترجمة (ستايل المربع الشفاف) ---
+        self.player['sub-color'] = '#c4a6f1'           
+        self.player['sub-back-color'] = '#B31d1d2c'    
+        self.player['sub-border-style'] = 'opaque-box' 
+        self.player['sub-border-size'] = 3             
+        self.player['sub-shadow-offset'] = 0           
+        self.player['sub-margin-y'] = 40               
+
+        # ==========================================
+        # --- إصلاح منطق إزاحة الأسطر (The Sliding Logic) ---
+        # ==========================================
+        # هذا هو السطر الذي سيدمر إحداثيات يوتيوب ويجعل النص ينزلق بسلاسة للأعلى
+        self.player['sub-ass-override'] = 'strip' 
+        
+        self.player['sub-fix-timing'] = 'no' 
+        self.player['sub-ass-force-margins'] = 'yes'
+        self.player['sub-use-margins'] = 'yes'
+        self.player['sub-align-y'] = 'bottom'
+        
+        # حالة تفعيل الترجمة في الواجهة
+        self._subtitles_enabled = False
+
+        # ربط مراقب (Observer) لخاصية sub-text للتأكد من عدم ظهور مربعات فارغة
+        self.player.observe_property('sub-text', self.on_sub_text_change)
 
         # UI Timer
         self.ui_timer = QTimer()
@@ -227,6 +260,9 @@ class HardPlayerWindow(QMainWindow):
         self.controls.prev_clicked.connect(self.play_previous)
         self.controls.repeat_toggled.connect(self.toggle_loop)
         self.controls.seek_requested.connect(self.seek_video)
+        
+        # --- إضافة: ربط إشارة الترجمة ---
+        self.controls.subtitle_toggled.connect(self.toggle_subtitles)
 
     # ==========================================
     # --- UI & Event Overrides ---
@@ -258,11 +294,9 @@ class HardPlayerWindow(QMainWindow):
         print(f"[*] 🔄 Switching to: {path}")
         self.player.stop()
         
-        # تحديث الفهرس الحالي قبل التشغيل وعدم مسح القائمة
         if path in self.playlist:
             self.current_index = self.playlist.index(path)
             
-        # نمرر reset_playlist=False لكي لا تمسح القائمة الحالية
         self.play_youtube(path, reset_playlist=False)
     
     def browse_video(self):
@@ -287,6 +321,48 @@ class HardPlayerWindow(QMainWindow):
         self.controls.set_repeat_status(self.loop_enabled)
         state = "ENABLED" if self.loop_enabled else "DISABLED"
         print(f"[*] 🔁 Loop Mode: {state}")
+
+    # --- إضافة: دالة التبديل للترجمة بأمان (Safe Toggle) ---
+    def toggle_subtitles(self):
+        """التحكم في إظهار أو إخفاء الترجمة وتغيير لون الزر"""
+        try:
+            self._subtitles_enabled = not getattr(self, '_subtitles_enabled', False)
+            
+            # جلب النص الحالي بأمان تام لتفادي انهيار المحرك إذا لم يكن جاهزاً
+            current_text = ""
+            try:
+                current_text = getattr(self.player, 'sub_text', "")
+            except Exception:
+                pass
+                
+            try:
+                if self._subtitles_enabled and current_text and str(current_text).strip():
+                    self.player['sub-visibility'] = True
+                else:
+                    self.player['sub-visibility'] = False
+            except Exception:
+                pass
+            
+            self.controls.set_subtitle_status(self._subtitles_enabled)
+            state = "ON" if self._subtitles_enabled else "OFF"
+            print(f"[*] 💬 Subtitles: {state}")
+        except Exception as e:
+            print(f"[*] ⚠️ Error toggling subtitles: {e}")
+
+    def on_sub_text_change(self, name, value):
+        """مراقب لضمان عدم ظهور المربع المعتم إذا كان النص فارغاً (Safe Observer)"""
+        try:
+            if not getattr(self, '_subtitles_enabled', False):
+                self.player['sub-visibility'] = False
+                return
+                
+            if not value or str(value).strip() == "":
+                self.player['sub-visibility'] = False
+            else:
+                self.player['sub-visibility'] = True
+        except Exception:
+            # تجاهل صامت لتفادي أي أخطاء أثناء تغيير حالة الفيديو (Core Dump prevention)
+            pass
 
     def seek_video(self, position):
         self.player.time_pos = position
@@ -313,7 +389,6 @@ class HardPlayerWindow(QMainWindow):
             self.playlist = [current_file]
             self.current_index = 0
             
-        # Send the new playlist data to the Sidebar
         self.playlist_panel.set_playlist_data(self.playlist)
 
     def start_mpris_service(self):
@@ -346,7 +421,6 @@ class HardPlayerWindow(QMainWindow):
     def ask_for_decoding_and_play(self, source):
         print(f"\n{'-'*60}\n[*] 📂 Video Selected: {source}")
         
-        # Fetch cached HWDEC preference from the TopMenuBar
         saved_hwdec = self.menu_bar.get_saved_hwdec()
         if saved_hwdec:
             print(f"[*] ⚡ Fast Track: Using Saved HWDEC '{saved_hwdec}'")
@@ -389,7 +463,6 @@ class HardPlayerWindow(QMainWindow):
 
         clean_url_for_quality = yt_url
         
-        # --- التعديل: استخراج أول فيديو من القائمة الخالصة بسرعة ---
         if "list=" in yt_url or "playlist?" in yt_url:
             match = re.search(r'v=([^&]+)', yt_url)
             if match:
@@ -412,7 +485,6 @@ class HardPlayerWindow(QMainWindow):
                     print(f"[*] ⚠️ Failed to fetch first video: {e}")
                     pass
 
-        # 1. Quality configuration
         if self.cli_quality and self.cli_quality in self.quality_map:
             format_code = self.quality_map[self.cli_quality]
         else:
@@ -429,17 +501,14 @@ class HardPlayerWindow(QMainWindow):
             else:
                 return
 
-        # --- إضافة ميزة الـ Fallback ---
         if format_code and "/" not in format_code and "[" not in format_code:
             format_code = f"{format_code}/best"
                 
-        # 2. Hardware cache injection
         saved_hwdec = self.menu_bar.get_saved_hwdec()
         if not self.cli_device and saved_hwdec:
             self.cli_device = "cached_hw"
             DEVICE_MAP["cached_hw"] = saved_hwdec
 
-        # 3. Hardware verification
         if self.cli_device and self.cli_device in DEVICE_MAP:
             selected_hwdec = DEVICE_MAP[self.cli_device]
         else:
@@ -455,8 +524,24 @@ class HardPlayerWindow(QMainWindow):
         self.player['ytdl'] = True
         self.player['ytdl-format'] = format_code
         self.player['vid'] = 'no' if self.cli_quality == 'audio' else 'auto'
+
+        self.player['ytdl-raw-options'] = {
+            "write-sub": "",
+            "write-auto-sub": "",
+            "sub-langs": "ar,en,en-US,en-GB"
+        }
+        self.player['slang'] = 'ar,en' 
         
-        # --- التعديل: تحديث القائمة (فقط إذا كان طلباً جديداً) ---
+        try:
+            self.player['sub-visibility'] = False 
+        except Exception:
+            pass
+            
+        # إعادة ضبط الحالة عند تشغيل فيديو جديد
+        self._subtitles_enabled = False
+        self.controls.set_subtitle_status(False)
+        # ==========================================
+        
         if reset_playlist:
             if "list=" in yt_url or "playlist?" in yt_url:
                 print("[*] 📜 YouTube Playlist detected. Fetching items in background...")
@@ -478,12 +563,10 @@ class HardPlayerWindow(QMainWindow):
         self.player.play(yt_url)
 
     def _on_yt_playlist_fetched(self, urls, original_url):
-        """دالة للتعامل مع الفيديوهات المجلوبة من قائمة التشغيل وضبط الفهرس"""
         if not urls: return
         print(f"[*] ✅ Fetched {len(urls)} videos from playlist.")
         self.playlist = urls
         
-        # محاولة تحديد مكان (index) الفيديو الحالي الذي يشتغل إذا كان الرابط الأصلي يحتوي على v=
         match = re.search(r'v=([^&]+)', original_url)
         if match:
             vid_id = match.group(1)
@@ -494,7 +577,6 @@ class HardPlayerWindow(QMainWindow):
         else:
             self.current_index = 0
             
-        # تحديث القائمة الجانبية بالروابط الجديدة
         self.playlist_panel.set_playlist_data(self.playlist)
 
     def show_startup_dialog(self):
@@ -527,6 +609,9 @@ class HardPlayerWindow(QMainWindow):
             self.toggle_playback()
         elif event.key() == Qt.Key.Key_MediaStop:
             self.stop_playback()
+        # --- إضافة اختصار كيبورد (حرف C) لتشغيل/إيقاف الترجمة سريعاً ---
+        elif event.key() == Qt.Key.Key_C:
+            self.toggle_subtitles()
         super().keyPressEvent(event)
 
     def _reset_seek_flag(self):
