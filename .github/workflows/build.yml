@@ -1,9 +1,9 @@
-name: HardPlayer Evolution (v20.0.0)
+name: HardPlayer Evolution (v21.0.0)
 
 on:
   push:
     tags:
-      - 'v20*'
+      - 'v21*'
 
 permissions:
   contents: write
@@ -41,7 +41,7 @@ jobs:
           # yt-dlp is intentionally EXCLUDED from pip install.
           # It is a declared fpm system dependency (-d yt-dlp), meaning the OS
           # package manager provides it at runtime. Adding it to pip caused Nuitka
-          # to discover and bundle the entire yt-dlp module tree (hundreds of files)
+          # to discover and bundle the entire yt-dlp source tree (hundreds of files)
           # via --follow-imports, which is what exploded build time to 80+ minutes
           # and massively inflated package size in v19. It must never be pip-installed
           # in this build environment.
@@ -70,9 +70,9 @@ jobs:
           path: |
             __pycache__
             ~/.cache/Nuitka
-          key: ${{ runner.os }}-nuitka-v20-${{ matrix.arch }}-${{ hashFiles('hardplayer.py') }}
+          key: ${{ runner.os }}-nuitka-v21-${{ matrix.arch }}-${{ hashFiles('hardplayer.py') }}
           restore-keys: |
-            ${{ runner.os }}-nuitka-v20-${{ matrix.arch }}-
+            ${{ runner.os }}-nuitka-v21-${{ matrix.arch }}-
 
       - name: Build with Nuitka & Setup Desktop Entry
         run: |
@@ -127,8 +127,8 @@ jobs:
 
       - name: Generate Production Packages (DEB, RPM, Pacman)
         run: |
-          DESC="HardPlayer v20: Optimized build pipeline, system-native yt-dlp integration, and further UI enhancements."
-          VER="20.0.0"
+          DESC="HardPlayer v21: UX Overhaul with cascading menus and custom download locations."
+          VER="21.0.0"
           ARCH="${{ matrix.arch }}"
 
           fpm -s dir -t deb -n hardplayer -v $VER -a $ARCH --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d aria2 -C package_root .
@@ -137,21 +137,20 @@ jobs:
 
       - name: Deploy Release Assets
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/v20')
+        if: startsWith(github.ref, 'refs/tags/v21')
         with:
-          name: HardPlayer v20.0.0 - Optimized Build & System-Native yt-dlp 🚀
+          name: HardPlayer v21.0.0 - UX Overhaul & Custom Locations 🚀
           body: |
             ## 📥 Download Links
             | Architecture | Ubuntu / Debian | Fedora / Suse | Arch Linux |
             | :--- | :--- | :--- | :--- |
-            | **x86-64 (64-bit)** | [Download DEB](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer_20.0.0_x86_64.deb) | [Download RPM](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-20.0.0-1.x86_64.rpm) | [Download Pacman](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-20.0.0-1-x86_64.pkg.tar.zst) |
+            | **x86-64 (64-bit)** | [Download DEB](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer_21.0.0_amd64.deb) | [Download RPM](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-21.0.0-1.x86_64.rpm) | [Download Pacman](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-21.0.0-1-x86_64.pkg.tar.zst) |
 
             ---
 
-            ### What's New in v20.0.0?
-            * **Optimized Build Pipeline:** Restored v14-era fast compilation by correctly treating `yt-dlp` as a system dependency. Nuitka no longer bundles it, resulting in drastically smaller package sizes and sub-5-minute build times.
-            * **Nuitka Compilation Cache:** GitHub Actions now caches `__pycache__` and Nuitka's C-compilation cache between runs. Subsequent builds on unchanged code are near-instant.
-            * **All v19 Features Retained:** Advanced YouTube Downloader (Subtitles, Thumbnails, Chapters, Info), Smart Subtitle Fetching, and Enhanced Download UI are fully preserved.
+            ### ✨ What's New in v21.0.0?
+            * **UX Improvements:** Fully reorganized the top menus (Hardware and YouTube) using cascading sub-menus for a cleaner, more intuitive interface.
+            * **Custom Download Location:** Added a new feature to select and save a specific directory for YouTube videos and metadata info (.txt) files directly from the top menu.
           files: |
             *.deb
             *.rpm
