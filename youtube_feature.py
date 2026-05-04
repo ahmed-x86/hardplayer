@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
                              QScrollArea, QWidget, QFrame)
 from PyQt6.QtCore import QTimer, Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QFont, QPixmap
+from pathlib import Path # مطلوب للتعامل مع المسارات
 
 # التوصيل بملفك الجديد لاستخراج الصور المصغرة
 from get_youtube_thumbnail import get_youtube_thumbnail
@@ -82,8 +83,6 @@ class YouTubeSimpleQualityDialog(QDialog):
         if formats is None:
             formats = []
             
-        from pathlib import Path
-        
         # قراءة الصيغة المفضلة من الكاش
         pref_ext = None
         ext_file = Path.home() / ".cache" / "hardplayer" / "youtube_video_ext.txt"
@@ -539,6 +538,17 @@ class DownloadWorker(QThread):
         self._delete_parts = delete_parts
 
     def run(self):
+        # --- تعديل: جلب مسار التحميل المخصص من الكاش ---
+        path_file = Path.home() / ".cache" / "hardplayer" / "download_path.txt"
+        output_template = '%(title)s.%(ext)s' # القالب الافتراضي
+        
+        if path_file.exists():
+            custom_path = path_file.read_text(encoding="utf-8").strip()
+            if custom_path and os.path.exists(custom_path):
+                # دمج المجلد المختار مع قالب اسم الملف
+                output_template = os.path.join(custom_path, '%(title)s.%(ext)s')
+        # ---------------------------------------------
+
         def progress_hook(d):
             # إيقاف التحميل فوراً برمي استثناء مخصص إذا ضغط المستخدم Cancel
             if self._abort:
@@ -570,7 +580,7 @@ class DownloadWorker(QThread):
         ydl_opts = {
             'format': self.format_id,
             'progress_hooks': [progress_hook],
-            'outtmpl': '%(title)s.%(ext)s',
+            'outtmpl': output_template, # استخدام القالب المحدث هنا
             'quiet': True,
             'noprogress': True,
             # 🔴 السر هنا: تجاهل الأخطاء العابرة (مثل الترجمة 429) لمنع انهيار الفيديو بالكامل
