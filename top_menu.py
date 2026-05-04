@@ -2,10 +2,9 @@
 
 import os
 from pathlib import Path
-from PyQt6.QtWidgets import QMenuBar, QMenu, QPushButton
+from PyQt6.QtWidgets import QMenuBar, QMenu, QPushButton, QFileDialog
 from PyQt6.QtGui import QActionGroup, QAction
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QAction
 
 # استيراد خريطة الأجهزة من ملف الـ hardware decoding الخاص بك
 from hw_decoding import DEVICE_MAP
@@ -60,8 +59,11 @@ class TopMenuBar(QMenuBar):
         """)
 
     def setup_menus(self):
-        # قائمة Hardware Decoding
-        hw_menu = self.addMenu("Hardware (Default) ⚙️")
+        # --- قائمة Hardware ---
+        hw_menu = self.addMenu("Hardware ⚙️")
+
+        # إنشاء قائمة فرعية (Sub-menu) لتنظيم الخيارات
+        default_hw_menu = hw_menu.addMenu("Default Backend 🖥️")
 
         # مجموعة أكشن حصرية (Radio Button behavior)
         self.hw_action_group = QActionGroup(self)
@@ -70,7 +72,7 @@ class TopMenuBar(QMenuBar):
         saved_hwdec = self.get_saved_hwdec()
 
         for cli_name, hw_arg in DEVICE_MAP.items():
-            action = hw_menu.addAction(f"Save: {cli_name} ({hw_arg})")
+            action = default_hw_menu.addAction(f"{cli_name} ({hw_arg})")
             action.setCheckable(True)
             self.hw_action_group.addAction(action)
             
@@ -80,23 +82,30 @@ class TopMenuBar(QMenuBar):
             # ربط الأكشن بالدالة البرمجية
             action.triggered.connect(lambda checked, h=hw_arg: self.save_default_hwdec(h))
             
-        hw_menu.addSeparator()
-        reset_action = hw_menu.addAction("Reset HW Default 🔄")
+        default_hw_menu.addSeparator()
+        reset_action = default_hw_menu.addAction("Reset Default 🔄")
         reset_action.triggered.connect(self.reset_default_hwdec)
 
-        # --- إضافة قائمة YouTube الجديدة هنا ---
+        # --- قائمة YouTube ---
         youtube_menu = self.addMenu("YouTube 📺")
         download_action = youtube_menu.addAction("Download YouTube Video 📥")
         download_action.triggered.connect(self.show_youtube_dialog)
 
         youtube_menu.addSeparator()
 
-        # خيار كعنوان فقط (غير قابل للضغط)
-        ext_label = QAction("Default Extension", self)
-        ext_label.setEnabled(False)
-        youtube_menu.addAction(ext_label)
+        # قائمة فرعية لتحديد مجلد التحميل
+        loc_menu = youtube_menu.addMenu("Download Location 📁")
+        set_loc_action = loc_menu.addAction("Set Download Folder 📂")
+        set_loc_action.triggered.connect(self.select_download_directory)
+        reset_loc_action = loc_menu.addAction("Reset to Default 🔄")
+        reset_loc_action.triggered.connect(self.reset_download_path)
 
-        # مجموعة أكشن للصيغ
+        youtube_menu.addSeparator()
+
+        # إنشاء قائمة فرعية (Sub-menu) للصيغ
+        ext_menu = youtube_menu.addMenu("Default Extension 🗂️")
+
+        # مجموعة أكشن للصيغ داخل القائمة الفرعية
         self.ext_action_group = QActionGroup(self)
         self.ext_action_group.setExclusive(True)
 
@@ -104,7 +113,7 @@ class TopMenuBar(QMenuBar):
         extensions = ["mp4", "mkv", "webm"]
 
         for ext in extensions:
-            action = youtube_menu.addAction(f".{ext}")
+            action = ext_menu.addAction(f".{ext}")
             action.setCheckable(True)
             self.ext_action_group.addAction(action)
             
@@ -113,8 +122,8 @@ class TopMenuBar(QMenuBar):
 
             action.triggered.connect(lambda checked, e=ext: self.save_yt_ext(e))
 
-        youtube_menu.addSeparator()
-        reset_ext_action = youtube_menu.addAction("Reset Extension 🔄")
+        ext_menu.addSeparator()
+        reset_ext_action = ext_menu.addAction("Reset Extension 🔄")
         reset_ext_action.triggered.connect(self.reset_yt_ext)
 
     def setup_playlist_button(self):
@@ -166,12 +175,6 @@ class TopMenuBar(QMenuBar):
         
         self.hw_changed.emit("no") # العودة للحالة الافتراضية
 
-    def get_saved_hwdec(self):
-        hw_file = Path.home() / ".cache" / "hardplayer" / "hw.txt"
-        if hw_file.exists():
-            return hw_file.read_text(encoding="utf-8").strip()
-        return None
-
     # --- منطق الـ Cache لصيغة اليوتيوب الافتراضية ---
 
     def save_yt_ext(self, ext):
@@ -197,4 +200,36 @@ class TopMenuBar(QMenuBar):
         ext_file = Path.home() / ".cache" / "hardplayer" / "youtube_video_ext.txt"
         if ext_file.exists():
             return ext_file.read_text(encoding="utf-8").strip()
+        return None
+
+    def get_saved_hwdec(self):
+        hw_file = Path.home() / ".cache" / "hardplayer" / "hw.txt"
+        if hw_file.exists():
+            return hw_file.read_text(encoding="utf-8").strip()
+        return None
+
+    # --- منطق الـ Cache لمسار التحميل ---
+
+    def select_download_directory(self):
+        directory = QFileDialog.getExistingDirectory(self, "Select Download Folder")
+        if directory:
+            self.save_download_path(directory)
+
+    def save_download_path(self, path):
+        cache_dir = Path.home() / ".cache" / "hardplayer"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        path_file = cache_dir / "download_path.txt"
+        path_file.write_text(path, encoding="utf-8")
+        print(f"\n[*] 💾 Saved Download Path: '{path}'")
+
+    def reset_download_path(self):
+        path_file = Path.home() / ".cache" / "hardplayer" / "download_path.txt"
+        if path_file.exists():
+            path_file.unlink()
+            print("\n[*] 🗑️ Reset Download Path to Default.")
+
+    def get_saved_download_path(self):
+        path_file = Path.home() / ".cache" / "hardplayer" / "download_path.txt"
+        if path_file.exists():
+            return path_file.read_text(encoding="utf-8").strip()
         return None
