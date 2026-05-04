@@ -1,6 +1,8 @@
 # ui_components.py
 
 import subprocess
+import os # تمت الإضافة للتعامل مع المسارات
+from pathlib import Path # مطلوب للوصول للكاش
 from PyQt6.QtWidgets import (QWidget, QDialog, QVBoxLayout, QHBoxLayout, 
                              QLabel, QPushButton, QLineEdit, QSlider, QFrame, 
                              QProgressBar, QScrollArea, QTextEdit)
@@ -607,9 +609,20 @@ class DownloadProgressDialog(QDialog):
 
     def save_info_file(self, info):
         try:
+            # جلب مسار التحميل المخصص من الكاش
+            path_file = Path.home() / ".cache" / "hardplayer" / "download_path.txt"
+            target_dir = os.getcwd() # الافتراضي هو المجلد الحالي
+            
+            if path_file.exists():
+                custom_path = path_file.read_text(encoding="utf-8").strip()
+                if custom_path and os.path.exists(custom_path):
+                    target_dir = custom_path # تحديث المجلد للمسار المخصص
+
             title = info.get('title', 'video')
             clean_title = "".join([c for c in title if c.isalpha() or c.isdigit() or c in ' -_']).rstrip()
-            filename = f"{clean_title}_info.txt"
+            # دمج المجلد المختار مع اسم الملف
+            filename = os.path.join(target_dir, f"{clean_title}_info.txt")
+            
             with open(filename, 'w', encoding='utf-8') as f:
                 f.write(f"Title: {title}\n")
                 f.write(f"Channel: {info.get('uploader', 'N/A')}\n")
@@ -619,6 +632,7 @@ class DownloadProgressDialog(QDialog):
                 f.write(f"Likes: {info.get('like_count', 'N/A')}\n\n")
                 f.write("=========================\n")
                 f.write(f"Description:\n{info.get('description', '')}\n")
+            print(f"[*] 📄 Info file saved to: {filename}") # طباعة المسار للتأكد
         except Exception as e:
             print(f"[*] ⚠️ Failed to save info file: {e}")
 
@@ -670,7 +684,6 @@ class QualitySelectorDialog(QDialog):
         content_layout = QVBoxLayout(content_widget)
         content_layout.setSpacing(8)
 
-        from pathlib import Path
         pref_ext = None
         ext_file = Path.home() / ".cache" / "hardplayer" / "youtube_video_ext.txt"
         if ext_file.exists():
