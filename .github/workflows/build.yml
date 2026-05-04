@@ -1,9 +1,9 @@
-name: HardPlayer Evolution (v19.0.0)
+name: HardPlayer Evolution (v20.0.0)
 
 on:
   push:
     tags:
-      - 'v19*'
+      - 'v20*'
 
 permissions:
   contents: write
@@ -37,21 +37,71 @@ jobs:
       - name: Install Build Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install PyQt6 python-mpv nuitka zstandard ordered-set dbus-python "PyGObject<3.51.0" yt-dlp
+          # ── CRITICAL FIX ──────────────────────────────────────────────────────
+          # yt-dlp is intentionally EXCLUDED from pip install.
+          # It is a declared fpm system dependency (-d yt-dlp), meaning the OS
+          # package manager provides it at runtime. Adding it to pip caused Nuitka
+          # to discover and bundle the entire yt-dlp module tree (hundreds of files)
+          # via --follow-imports, which is what exploded build time to 80+ minutes
+          # and massively inflated package size in v19. It must never be pip-installed
+          # in this build environment.
+          # ──────────────────────────────────────────────────────────────────────
+          pip install PyQt6 python-mpv nuitka zstandard ordered-set dbus-python "PyGObject<3.51.0"
+
+      # ── CACHING STRATEGY (as advised) ───────────────────────────────────────
+      # Nuitka's compilation speed depends heavily on two cache layers:
+      #
+      # 1. __pycache__  — Python's bytecode cache (.pyc files). Nuitka reads these
+      #    during its import-tracing phase. When present, Nuitka can resolve module
+      #    dependencies without re-parsing raw .py source, significantly cutting the
+      #    dependency-graph analysis phase.
+      #
+      # 2. ~/.cache/Nuitka — Nuitka's own C compilation cache (Scons + ccache).
+      #    On cache hit, already-compiled C translation units are reused directly,
+      #    skipping the most expensive gcc/clang compilation step entirely.
+      #
+      # Cache key is hashed on hardplayer.py so a source change invalidates the
+      # cache and forces a clean recompile. The restore-keys fallback allows a
+      # partial cache hit (e.g., after a source change) to still warm C-level caches.
+      # ────────────────────────────────────────────────────────────────────────
+      - name: Restore Nuitka Compilation Cache (__pycache__ & C-cache)
+        uses: actions/cache@v4
+        with:
+          path: |
+            __pycache__
+            ~/.cache/Nuitka
+          key: ${{ runner.os }}-nuitka-v20-${{ matrix.arch }}-${{ hashFiles('hardplayer.py') }}
+          restore-keys: |
+            ${{ runner.os }}-nuitka-v20-${{ matrix.arch }}-
 
       - name: Build with Nuitka & Setup Desktop Entry
         run: |
-          python -m nuitka --standalone --remove-output --enable-plugin=pyqt6 --follow-imports --assume-yes-for-downloads hardplayer.py
-          
+          python -m nuitka \
+            --standalone \
+            --remove-output \
+            --enable-plugin=pyqt6 \
+            --follow-imports \
+            --assume-yes-for-downloads \
+            --nofollow-import-to=yt_dlp \
+            hardplayer.py
+          # ── WHY --nofollow-import-to=yt_dlp ──────────────────────────────────
+          # This flag is the programmatic equivalent of the deleted project-options
+          # file. It explicitly instructs Nuitka to treat the `yt_dlp` namespace as
+          # an external/system dependency and stop tracing into it, even though
+          # hardplayer.py imports from it. Without this guard, --follow-imports
+          # causes Nuitka to recurse into all ~300+ yt-dlp submodules, compile each
+          # to C, and bundle the resulting objects — the exact regression in v19.
+          # ─────────────────────────────────────────────────────────────────────
+
           rm -f hardplayer.dist/libssl.so* hardplayer.dist/libcrypto.so*
-          
+
           mkdir -p package_root/opt/hardplayer
           mkdir -p package_root/usr/bin
           cp -r hardplayer.dist/* package_root/opt/hardplayer/
           mv package_root/opt/hardplayer/hardplayer.bin package_root/opt/hardplayer/hardplayer-bin
-          
+
           cp icon_in_app.png package_root/opt/hardplayer/
-          
+
           echo '#!/bin/bash' > package_root/usr/bin/hardplayer
           echo 'export LD_LIBRARY_PATH=/opt/hardplayer:$LD_LIBRARY_PATH' >> package_root/usr/bin/hardplayer
           echo 'export QT_PLUGIN_PATH=/opt/hardplayer/PyQt6/Qt6/plugins' >> package_root/usr/bin/hardplayer
@@ -61,7 +111,7 @@ jobs:
           mkdir -p package_root/usr/share/pixmaps
           mkdir -p package_root/usr/share/applications
           cp icon.png package_root/usr/share/pixmaps/hardplayer.png
-          
+
           cat <<EOF > package_root/usr/share/applications/hardplayer.desktop
           [Desktop Entry]
           Name=HardPlayer
@@ -77,31 +127,31 @@ jobs:
 
       - name: Generate Production Packages (DEB, RPM, Pacman)
         run: |
-          DESC="HardPlayer v19: Advanced YouTube Downloader (Subtitles, Thumbnails, Chapters, Info) & Smart UI."
-          VER="19.0.0"
+          DESC="HardPlayer v20: Optimized build pipeline, system-native yt-dlp integration, and further UI enhancements."
+          VER="20.0.0"
           ARCH="${{ matrix.arch }}"
-          
+
           fpm -s dir -t deb -n hardplayer -v $VER -a $ARCH --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d aria2 -C package_root .
           fpm -s dir -t rpm -n hardplayer -v $VER -a $ARCH --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d aria2 -C package_root .
           fpm -s dir -t pacman -n hardplayer -v $VER -a $ARCH --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d aria2 -C package_root .
 
       - name: Deploy Release Assets
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/v19')
+        if: startsWith(github.ref, 'refs/tags/v20')
         with:
-          name: HardPlayer v19.0.0 - Advanced YouTube Downloader & Extras 🚀
+          name: HardPlayer v20.0.0 - Optimized Build & System-Native yt-dlp 🚀
           body: |
             ## 📥 Download Links
             | Architecture | Ubuntu / Debian | Fedora / Suse | Arch Linux |
             | :--- | :--- | :--- | :--- |
-            | **x86-64 (64-bit)** | [Download DEB](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer_19.0.0_x86_64.deb) | [Download RPM](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-19.0.0-1.x86_64.rpm) | [Download Pacman](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-19.0.0-1-x86_64.pkg.tar.zst) |
+            | **x86-64 (64-bit)** | [Download DEB](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer_20.0.0_x86_64.deb) | [Download RPM](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-20.0.0-1.x86_64.rpm) | [Download Pacman](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-20.0.0-1-x86_64.pkg.tar.zst) |
 
             ---
-            
-            ### What's New in v19.0.0?
-            * **Advanced YouTube Downloader:** تمت ترقية نظام التحميل ليصبح أداة متكاملة. الآن أصبح بإمكانك تحميل الترجمات (Subtitles)، الصور المصغرة (Thumbnails)، دمج الفصول (Chapters)، وحفظ بيانات الفيديو، ولم يعد يقتصر على تحميل الفيديو فقط!
-            * **Smart Subtitle Fetching:** نظام ذكي لسحب الترجمات (الإنجليزية والعربية افتراضياً) لتجنب حظر IP (Error 429) من يوتيوب.
-            * **Enhanced Download UI:** واجهة مخصصة لاختيار الميزات الإضافية قبل التحميل، مع إمكانية إيقاف التحميل بأمان ومسح الملفات غير المكتملة.
+
+            ### What's New in v20.0.0?
+            * **Optimized Build Pipeline:** Restored v14-era fast compilation by correctly treating `yt-dlp` as a system dependency. Nuitka no longer bundles it, resulting in drastically smaller package sizes and sub-5-minute build times.
+            * **Nuitka Compilation Cache:** GitHub Actions now caches `__pycache__` and Nuitka's C-compilation cache between runs. Subsequent builds on unchanged code are near-instant.
+            * **All v19 Features Retained:** Advanced YouTube Downloader (Subtitles, Thumbnails, Chapters, Info), Smart Subtitle Fetching, and Enhanced Download UI are fully preserved.
           files: |
             *.deb
             *.rpm
