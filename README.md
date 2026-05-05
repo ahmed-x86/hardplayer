@@ -1,4 +1,4 @@
-# 🎬 HardPlayer (20.0.0) — Advanced YouTube Downloader & Extras 🚀
+# 🎬 HardPlayer (22.0.0) — Advanced codec converter 🚀
 
 HardPlayer is a lightweight, high-performance modular media player built with **Python**, **PyQt6**, and the **MPV Engine**. It combines native system integration with a sleek **Catppuccin Mocha** aesthetic and a pro-grade YouTube acquisition engine.
 
@@ -8,7 +8,7 @@ Developed by **Ahmed (ahmed-x86)**, this player follows the "KISS" philosophy, s
 
 ![License](https://img.shields.io/badge/License-GPLv3-blue.svg)
 ![Platform](https://img.shields.io/badge/Platform-Linux%20-lightgrey)
-![Version](https://img.shields.io/badge/Version-21.0.0-mauve)
+![Version](https://img.shields.io/badge/Version-22.0.0-mauve)
 ![Theme](https://img.shields.io/badge/Theme-Catppuccin%20Mocha-blue)
 
 
@@ -16,11 +16,21 @@ Developed by **Ahmed (ahmed-x86)**, this player follows the "KISS" philosophy, s
 
 ## 📥 Download Links (Release Assets)
 
-| Architecture | Ubuntu / Debian (DEB) | Fedora / Suse (RPM) | Arch Linux (Pacman) |
+| Variant | Ubuntu / Debian (DEB) | Fedora / Suse (RPM) | Arch Linux (Pacman) |
 | :--- | :--- | :--- | :--- |
-| **x86-64 (64-bit)** | [Download DEB](https://github.com/ahmed-x86/hardplayer/releases/download/v21.0.0/hardplayer_21.0.0_amd64.deb) | [Download RPM](https://github.com/ahmed-x86/hardplayer/releases/download/v21.0.0/hardplayer-21.0.0-1.x86_64.rpm) | [Download Pacman](https://github.com/ahmed-x86/hardplayer/releases/download/v21.0.0/hardplayer-21.0.0-1-x86_64.pkg.tar.zst) |
+| **Standalone (Bundled Qt)** | [Download DEB](https://github.com/ahmed-x86/hardplayer/releases/download/v22.0.0/hardplayer-standalone_22.0.0_amd64.deb) | [Download RPM](https://github.com/ahmed-x86/hardplayer/releases/download/v22.0.0/hardplayer-standalone-22.0.0-1.x86_64.rpm) | [Download Pacman](https://github.com/ahmed-x86/hardplayer/releases/download/v22.0.0/hardplayer-standalone-22.0.0-1-x86_64.pkg.tar.zst) |
+| **System-Qt (Lightweight)** | [Download DEB](https://github.com/ahmed-x86/hardplayer/releases/download/v22.0.0/hardplayer-system-qt_22.0.0_amd64.deb) | [Download RPM](https://github.com/ahmed-x86/hardplayer/releases/download/v22.0.0/hardplayer-system-qt-22.0.0-1.x86_64.rpm) | [Download Pacman](https://github.com/ahmed-x86/hardplayer/releases/download/v22.0.0/hardplayer-system-qt-22.0.0-1-x86_64.pkg.tar.zst) |
 
 ---
+
+## ✨ What's New in v22.0.0?
+
+* **Dual-Variant Release Architecture**: Now offering two distinct build types. **Standalone** includes all Qt6 libraries for "out-of-the-box" compatibility, while **System-Qt** uses your distro's native libraries for a significantly smaller footprint.
+* **Pro Media Converter Suite**: Integrated a multi-threaded conversion engine. Directly convert Video (MP4, MKV, WebM, DaVinci ProRes), Audio (MP3, Extraction, Muting), and Images (JPG, WebP, GIF) from the top menu.
+* **CUDA-Assisted Pipeline**: Optimized for NVIDIA hardware. Leverages CUDA for hardware-accelerated decoding, paired with high-compatibility encoders (libx264/VP9) to ensure perfect playback on all devices.
+* **Smart Progress Tracking**: Real-time conversion analytics featuring precise percentage calculations, speed metrics (e.g., 20x), and duration detection—even for complex MKV containers.
+* **Safety-First Cancellation**: New interactive confirmation system when closing active conversions, allowing users to choose between immediate cleanup or saving partially processed files.
+* **Optimized Build Logic**: Redesigned GitHub Actions workflow with version-agnostic caching, ensuring lightning-fast compilation across multiple releases.
 
 ## ✨ What's New in v21.0.0?
 
@@ -131,13 +141,13 @@ hardplayer -search "test" -quality 720p -device cpu
 ### Arch Linux (Pacman):
 ```bash
 sudo pacman -S aria2  # Required for high-speed downloads
-sudo pacman -U hardplayer-20.0.0-1-x86_64.pkg.tar.zst
+sudo pacman -U hardplayer-22.0.0-1-x86_64.pkg.tar.zst
 ```
 
 ### Debian/Ubuntu (DEB):
 ```bash
 sudo apt install aria2
-sudo dpkg -i hardplayer_20.0.0_x86_64.deb
+sudo dpkg -i hardplayer_22.0.0_x86_64.deb
 ```
 
 ## 📦 Requirements
