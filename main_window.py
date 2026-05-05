@@ -28,6 +28,9 @@ from hw_decoding import DecodingDialog, DEVICE_MAP
 from youtube_feature import YouTubeSimpleQualityDialog, YouTubeQualityDialog, YouTubeSearchDialog
 from ui_components import InfoDialog, StartupDialog
 
+# --- التعديل هنا: استيراد مدير التحويل ---
+from top_menu_convert import ConvertMenuManager
+
 try:
     from gi.repository import GLib
 except ImportError:
@@ -159,6 +162,9 @@ class HardPlayerWindow(QMainWindow):
         self.playlist = []
         self.current_index = -1
         self._keyboard_seeking = False
+        
+        # --- التعديل هنا: استدعاء مدير قائمة التحويل وربطه بالنافذة الرئيسية ---
+        self.convert_manager = ConvertMenuManager(self)
 
     def setup_logo_screen(self):
         """Set up the startup screen (Logo)."""
