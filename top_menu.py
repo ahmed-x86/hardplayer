@@ -11,10 +11,13 @@ from hw_decoding import DEVICE_MAP
 # استيراد نافذة إدخال الرابط من المكونات
 from ui_components import YouTubeURLDialog
 
+# --- استيراد مدير قائمة التحويل الجديد ---
+from top_menu_convert import ConvertMenuManager
+
 class TopMenuBar(QMenuBar):
     """
     كلاس مخصص للقائمة العلوية، يدير إعدادات الـ Hardware Decoding
-    وزر التحكم في قائمة التشغيل (Playlist).
+    وزر التحكم في قائمة التشغيل (Playlist) وقائمة التحويل.
     """
     # Signals للتواصل مع النافذة الرئيسية
     hw_changed = pyqtSignal(str) # ترسل النوع الجديد عند التغيير
@@ -125,6 +128,10 @@ class TopMenuBar(QMenuBar):
         ext_menu.addSeparator()
         reset_ext_action = ext_menu.addAction("Reset Extension 🔄")
         reset_ext_action.triggered.connect(self.reset_yt_ext)
+
+        # --- قائمة التحويل (Convert) ---
+        # نقوم بتمرير النافذة الرئيسية (main_window) لمدير التحويل لكي يبني قائمته بداخلها
+        self.convert_manager = ConvertMenuManager(self.main_window)
 
     def setup_playlist_button(self):
         """إضافة زر الـ Playlist في أقصى اليمين"""
