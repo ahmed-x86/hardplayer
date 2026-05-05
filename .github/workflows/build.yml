@@ -1,9 +1,9 @@
-name: HardPlayer Evolution (v22.1.0)
+name: HardPlayer Evolution (v22.2.0)
 
 on:
   push:
     tags:
-      - 'v22.1*'
+      - 'v22.2*'
 
 permissions:
   contents: write
@@ -107,8 +107,7 @@ jobs:
       - name: Compile with Nuitka
         run: |
           # الخيارات المشتركة بين الـ variant-ين
-          OPTS="--standalone"
-          OPTS="$OPTS --remove-output"
+          OPTS="--remove-output"
           OPTS="$OPTS --follow-imports"
           OPTS="$OPTS --assume-yes-for-downloads"
 
@@ -127,6 +126,7 @@ jobs:
           OPTS="$OPTS --nofollow-import-to=http"
 
           if [ "${{ matrix.variant }}" = "standalone" ]; then
+            OPTS="$OPTS --standalone"
             # --enable-plugin=pyqt6 يأمر Nuitka بنسخ Qt .so وplugins داخل .dist
             OPTS="$OPTS --enable-plugin=pyqt6"
           else
@@ -140,13 +140,18 @@ jobs:
       # ── تجهيز شجرة الحزمة (مشترك) ────────────────────────────────────────────
       - name: Stage Package Tree
         run: |
-          # إزالة OpenSSL المدمجة لتجنب التعارض مع مكتبات النظام
-          rm -f hardplayer.dist/libssl.so* hardplayer.dist/libcrypto.so*
-
           mkdir -p package_root/opt/hardplayer package_root/usr/bin
-          cp -r hardplayer.dist/* package_root/opt/hardplayer/
-          mv package_root/opt/hardplayer/hardplayer.bin \
-             package_root/opt/hardplayer/hardplayer-bin
+
+          if [ "${{ matrix.variant }}" = "standalone" ]; then
+            # إزالة OpenSSL المدمجة لتجنب التعارض مع مكتبات النظام
+            rm -f hardplayer.dist/libssl.so* hardplayer.dist/libcrypto.so*
+            cp -r hardplayer.dist/* package_root/opt/hardplayer/
+            mv package_root/opt/hardplayer/hardplayer.bin \
+               package_root/opt/hardplayer/hardplayer-bin
+          else
+            cp hardplayer.bin package_root/opt/hardplayer/hardplayer-bin
+          fi
+
           cp icon_in_app.png package_root/opt/hardplayer/
 
           mkdir -p package_root/usr/share/pixmaps \
@@ -252,13 +257,13 @@ jobs:
       # ─────────────────────────────────────────────────────────────────────────
       - name: Build Packages (DEB, RPM, Pacman)
         run: |
-          VER="22.1.0"
+          VER="22.2.0"
           PKG_NAME="hardplayer-${{ matrix.pkg_suffix }}"
           BASE_DEPS="-d mpv -d ffmpeg -d yt-dlp -d aria2"
           ARCH_PKG="${{ matrix.arch }}"
 
           if [ "${{ matrix.variant }}" = "standalone" ]; then
-            DESC="HardPlayer v22.1.0 Standalone: Self-contained with fully bundled Qt6. No Qt installation required."
+            DESC="HardPlayer v22.2.0 Standalone: Self-contained with fully bundled Qt6. No Qt installation required."
 
             # Standalone: لا اعتمادية Qt — مدمجة بالكامل
             fpm -s dir -t deb    -n "$PKG_NAME" -v "$VER" -a amd64    \
@@ -271,7 +276,7 @@ jobs:
                 --description "$DESC" $BASE_DEPS -C package_root .
 
           else
-            DESC="HardPlayer v22.1.0 System-Qt: Lightweight build using the host OS native Qt6 stack."
+            DESC="HardPlayer v22.2.0 System-Qt: Lightweight build using the host OS native Qt6 stack."
 
             # DEB (Debian/Ubuntu): اسم الاعتمادية هو python3-pyqt6
             fpm -s dir -t deb    -n "$PKG_NAME" -v "$VER" -a amd64    \
@@ -299,36 +304,36 @@ jobs:
       # ─────────────────────────────────────────────────────────────────────────
       - name: Create Release & Upload Standalone Assets
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/v22.1') && matrix.variant == 'standalone'
+        if: startsWith(github.ref, 'refs/tags/v22.2') && matrix.variant == 'standalone'
         with:
-          name: "HardPlayer v22.1.0 — Universal Distribution Fix 🔧🚀"
+          name: "HardPlayer v22.2.0 — Accelerated Native Engine 🚀"
           body: |
             ## 📥 Download Links
 
             ### 🔵 Variant A — Standalone *(recommended)*
-            > Qt6 مدمج بالكامل. يعمل على أي Linux مع `mpv`, `ffmpeg`, `yt-dlp`, `aria2`.
+            > Fully bundled with Qt6. Works out of the box on any Linux distribution with `mpv`, `ffmpeg`, `yt-dlp`, and `aria2`.
 
             | | Ubuntu / Debian | Fedora / SUSE | Arch Linux |
             |---|---|---|---|
-            | **x86-64** | [📦 DEB](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-standalone_22.1.0_amd64.deb) | [📦 RPM](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-standalone-22.1.0-1.x86_64.rpm) | [📦 Pacman](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-standalone-22.1.0-1-x86_64.pkg.tar.zst) |
+            | **x86-64** | [📦 DEB](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-standalone_22.2.0_amd64.deb) | [📦 RPM](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-standalone-22.2.0-1.x86_64.rpm) | [📦 Pacman](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-standalone-22.2.0-1-x86_64.pkg.tar.zst) |
 
             ---
 
             ### 🟢 Variant B — System-Qt *(lightweight)*
-            > يستخدم Qt6 النظام. يتطلب `python3-pyqt6` (Debian/Fedora) أو `python-pyqt6` (Arch) — تُثبَّت تلقائياً مع الحزمة.
+            > Uses the host system's native Qt6 stack. Requires `python3-pyqt6` (Debian/Fedora) or `python-pyqt6` (Arch) — installed automatically as a dependency.
 
             | | Ubuntu / Debian | Fedora / SUSE | Arch Linux |
             |---|---|---|---|
-            | **x86-64** | [📦 DEB](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-system-qt_22.1.0_amd64.deb) | [📦 RPM](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-system-qt-22.1.0-1.x86_64.rpm) | [📦 Pacman](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-system-qt-22.1.0-1-x86_64.pkg.tar.zst) |
+            | **x86-64** | [📦 DEB](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-system-qt_22.2.0_amd64.deb) | [📦 RPM](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-system-qt-22.2.0-1.x86_64.rpm) | [📦 Pacman](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-system-qt-22.2.0-1-x86_64.pkg.tar.zst) |
 
             ---
 
-            ### 🔧 What's Fixed in v22.1.0?
+            ### 🔧 What's Changed in v22.2.0?
 
-            * **🗺️ Universal PYTHONPATH Discovery:** الـ launcher الآن يسأل `python3` على جهاز المستخدم مباشرة عبر `site.getsitepackages()` لاكتشاف المسار الصحيح ديناميكياً. يعمل على Arch (python3.14/site-packages) وDebian وFedora وكل التوزيعات.
-            * **📦 Arch Dependency Name Fix:** حزمة Pacman تُعلن الاعتمادية باسمها الصحيح على Arch: `python-pyqt6` بدلاً من `python3-pyqt6` الذي كان يُسبب فشل التثبيت.
-            * **🛡️ http.cookies Guard:** إضافة `--nofollow-import-to=http` كحارس إضافي لمنع خطأ `No module named 'http.cookies'` الذي كان يظهر أحياناً من الاستيرادات الجزئية لـ yt-dlp.
-            * **⚡ Version-Agnostic Cache:** الكاش لا يزال مستقلاً عن رقم الإصدار — v22.1.0 يُعيد استخدام كاش v22.0.0 مجاناً.
+            * **🚀 System-Qt Acceleration Fix:** The System-Qt variant is now built as a native accelerated binary without the `--standalone` flag, allowing it to naturally discover and load your system's native PyQt6 and Python libraries.
+            * **🗺️ Universal PYTHONPATH Discovery:** Retained the dynamic `site.getsitepackages()` lookup logic in the launcher to ensure robust cross-distribution environment setup.
+            * **📦 Arch Dependency Fixed:** Pacman package natively targets `python-pyqt6` instead of `python3-pyqt6` for seamless Arch Linux installation.
+            * **🛡️ HTTP Cookies Guard:** Enforced `--nofollow-import-to=http` to prevent missing module errors triggered by partial `yt-dlp` imports.
           files: |
             *.deb
             *.rpm
@@ -338,7 +343,7 @@ jobs:
 
       - name: Upload System-Qt Assets to Existing Release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/v22.1') && matrix.variant == 'system-qt'
+        if: startsWith(github.ref, 'refs/tags/v22.2') && matrix.variant == 'system-qt'
         with:
           # name وbody محذوفان عمداً — Standalone هو المُنشئ الرسمي
           # هذا الـ step يُلحق الملفات فقط دون لمس metadata الـ release
