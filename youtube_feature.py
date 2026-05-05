@@ -5,7 +5,6 @@ import subprocess
 import urllib.request
 import json
 import re # مطلوب لإزالة الرموز الغريبة
-import yt_dlp  # مكتبة أساسية لمحرك التحميل الجديد
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, 
                              QLabel, QTextEdit, QLineEdit, QPushButton,
                              QScrollArea, QWidget, QFrame)
@@ -496,10 +495,10 @@ class YouTubeSearchDialog(QDialog):
         self.selected_url = url
         self.accept()
 
-# --- New Components for Background Fetching and Downloading ---
+# --- New Components for Background Fetching and Downloading (System yt-dlp version) ---
 
 class YTInfoFetcher(QThread):
-    """خيط لجلب كافة بيانات الفيديو التفصيلية في الخلفية لمنع تجمد الواجهة."""
+    """خيط لجلب كافة بيانات الفيديو التفصيلية في الخلفية باستخدام أوامر النظام."""
     finished = pyqtSignal(dict)
     error = pyqtSignal(str)
 
@@ -509,15 +508,20 @@ class YTInfoFetcher(QThread):
 
     def run(self):
         try:
-            ydl_opts = {'quiet': True, 'noplaylist': True}
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(self.url, download=False)
-                self.finished.emit(info)
+            # استدعاء yt-dlp من النظام وجلب البيانات كـ JSON
+            result = subprocess.run(
+                ["yt-dlp", "--dump-json", "--no-warnings", "--ignore-errors", self.url],
+                capture_output=True, text=True, check=True
+            )
+            info = json.loads(result.stdout)
+            self.finished.emit(info)
+        except subprocess.CalledProcessError as e:
+            self.error.emit(f"Process Error: {e.stderr}")
         except Exception as e:
             self.error.emit(str(e))
 
 class DownloadWorker(QThread):
-    """خيط للتحميل الفعلي للفيديو وإرسال التقدم مع إمكانية الإلغاء"""
+    """خيط للتحميل الفعلي للفيديو وإرسال التقدم بالاعتماد على مخرجات yt-dlp في الطرفية"""
     progress_signal = pyqtSignal(dict)
     finished_signal = pyqtSignal()
 
@@ -530,15 +534,18 @@ class DownloadWorker(QThread):
         # متغيرات التحكم بالإلغاء ومسح الملفات
         self._abort = False
         self._delete_parts = False
+        self.process = None # لحفظ كائن العملية للتمكن من قتلها
         self.downloaded_filepaths = set() # لحفظ مسارات الملفات قيد التحميل لتنظيفها لاحقاً
 
     def abort(self, delete_parts):
-        """دالة لإرسال أمر إيقاف التحميل من الخارج"""
+        """دالة لإرسال أمر إيقاف التحميل وإنهاء العملية النظامية"""
         self._abort = True
         self._delete_parts = delete_parts
+        if self.process:
+            self.process.terminate() # إنهاء عملية subprocess فوراً
 
     def run(self):
-        # --- تعديل: جلب مسار التحميل المخصص من الكاش ---
+        # جلب مسار التحميل المخصص من الكاش
         path_file = Path.home() / ".cache" / "hardplayer" / "download_path.txt"
         output_template = '%(title)s.%(ext)s' # القالب الافتراضي
         
@@ -547,100 +554,105 @@ class DownloadWorker(QThread):
             if custom_path and os.path.exists(custom_path):
                 # دمج المجلد المختار مع قالب اسم الملف
                 output_template = os.path.join(custom_path, '%(title)s.%(ext)s')
-        # ---------------------------------------------
 
-        def progress_hook(d):
-            # إيقاف التحميل فوراً برمي استثناء مخصص إذا ضغط المستخدم Cancel
-            if self._abort:
-                raise ValueError("DOWNLOAD_CANCELLED")
-                
-            if d['status'] == 'downloading':
-                # حفظ مسار الملف الحالي (قد يكون ملف صوت منفصل وملف فيديو منفصل)
-                if 'filename' in d:
-                    self.downloaded_filepaths.add(d['filename'])
-                    
-                # حساب النسبة المئوية يدوياً
-                downloaded = d.get('downloaded_bytes', 0)
-                total = d.get('total_bytes') or d.get('total_bytes_estimate', 0)
-                
-                percent_val = 0.0
-                if total > 0:
-                    percent_val = (downloaded / total) * 100
-                
-                clean_data = {
-                    'status': 'downloading',
-                    'percent': percent_val,
-                    '_percent_str': f"{percent_val:.1f}%",
-                    '_speed_str': clean_ansi(d.get('_speed_str', '0.00MiB/s')),
-                    '_eta_str': clean_ansi(d.get('_eta_str', '00:00')),
-                    '_total_bytes_str': clean_ansi(d.get('_total_bytes_str', d.get('_total_bytes_estimate_str', 'N/A')))
-                }
-                self.progress_signal.emit(clean_data)
-
-        ydl_opts = {
-            'format': self.format_id,
-            'progress_hooks': [progress_hook],
-            'outtmpl': output_template, # استخدام القالب المحدث هنا
-            'quiet': True,
-            'noprogress': True,
-            # 🔴 السر هنا: تجاهل الأخطاء العابرة (مثل الترجمة 429) لمنع انهيار الفيديو بالكامل
-            'ignoreerrors': True,
-            'postprocessors': []
-        }
+        # بناء أمر yt-dlp
+        cmd = [
+            "yt-dlp",
+            "-f", self.format_id,
+            "-o", output_template,
+            "--newline",         # ضروري جداً لقراءة التقدم سطراً بسطر في الـ stdout
+            "--ignore-errors",
+            "--no-warnings"
+        ]
 
         # 1. الترجمة
         if self.dl_options.get('subs'):
-            ydl_opts['writesubtitles'] = True
-            ydl_opts['writeautomaticsub'] = True 
-            ydl_opts['sleep_interval_subtitles'] = 2 
-            
+            cmd.extend(["--write-subs", "--write-auto-subs"])
             lang = self.dl_options.get('sub_lang', 'en,ar')
             if lang:
-                ydl_opts['subtitleslangs'] = [l.strip() for l in lang.split(',')]
-                
-            ydl_opts['postprocessors'].append({
-                'key': 'FFmpegSubtitlesConvertor',
-                'format': 'srt',
-            })
-            ydl_opts['postprocessors'].append({
-                'key': 'FFmpegEmbedSubtitle',
-            })
+                cmd.extend(["--sub-langs", lang])
+            # تحويل ودمج الترجمة
+            cmd.extend(["--convert-subs", "srt", "--embed-subs"])
 
         # 2. الصورة المصغرة
         if self.dl_options.get('thumb'):
-            ydl_opts['writethumbnail'] = True
-            ydl_opts['postprocessors'].append({
-                'key': 'FFmpegThumbnailsConvertor',
-                'format': 'jpg',
-            })
+            cmd.extend(["--write-thumbnail", "--convert-thumbnails", "jpg", "--embed-thumbnail"])
 
         # 3. الفصول
         if self.dl_options.get('chapters'):
-            ydl_opts['postprocessors'].append({
-                'key': 'FFmpegMetadata',
-                'add_chapters': True,
-            })
+            cmd.extend(["--embed-chapters"])
 
-        # تنظيف القائمة إذا كانت فارغة لتجنب مشاكل yt-dlp
-        if not ydl_opts['postprocessors']:
-            del ydl_opts['postprocessors']
+        # إضافة الرابط في نهاية الأمر
+        cmd.append(self.url)
 
         try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([self.url])
+            # استخدام Popen لقراءة المخرجات بشكل حي أثناء التحميل
+            self.process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+                universal_newlines=True
+            )
+
+            # تعبير نمطي مرن لاستخراج (النسبة، الحجم، السرعة، الوقت المتبقي)
+            progress_regex = re.compile(
+                r'\[download\]\s+(?P<percent>[0-9\.]+)%\s+of\s+~?(?P<size>[0-9a-zA-Z\.]+)'
+                r'(?:\s+at\s+(?P<speed>[0-9a-zA-Z\.]+/s))?(?:\s+ETA\s+(?P<eta>[0-9:]+))?'
+            )
+            
+            # استخراج مسارات الملفات للتمكن من حذفها في حالة الإلغاء
+            dest_regex = re.compile(r'\[download\] Destination:\s+(.+)')
+            merged_regex = re.compile(r'\[Merger\] Merging formats into \"(.+)\"')
+
+            # قراءة المخرجات سطراً بسطر في الوقت الفعلي
+            for line in self.process.stdout:
+                if self._abort:
+                    break
+
+                line = clean_ansi(line)
+
+                # البحث عن مسار الملف الذي يتم حفظه
+                dest_match = dest_regex.search(line)
+                if dest_match:
+                    self.downloaded_filepaths.add(dest_match.group(1).strip())
+                    
+                # في حالة الدمج (الفيديو والصوت)
+                merge_match = merged_regex.search(line)
+                if merge_match:
+                    self.downloaded_filepaths.add(merge_match.group(1).strip())
+
+                # استخراج بيانات التقدم وإرسالها للواجهة
+                match = progress_regex.search(line)
+                if match:
+                    percent_val = float(match.group('percent'))
+                    clean_data = {
+                        'status': 'downloading',
+                        'percent': percent_val,
+                        '_percent_str': f"{percent_val:.1f}%",
+                        '_speed_str': match.group('speed') if match.group('speed') else 'N/A',
+                        '_eta_str': match.group('eta') if match.group('eta') else '00:00',
+                        '_total_bytes_str': match.group('size')
+                    }
+                    self.progress_signal.emit(clean_data)
+
+            # انتظار انتهاء العملية
+            self.process.wait()
+
+            if self._abort:
+                raise ValueError("DOWNLOAD_CANCELLED")
                 
-            # إذا لم يتم الإلغاء، أرسل إشارة الانتهاء
-            if not self._abort:
+            # إرسال إشارة الانتهاء إذا كانت العملية ناجحة
+            if self.process.returncode == 0 or self.process.returncode == 1:
                 self.finished_signal.emit()
-                
+
         except ValueError as e:
-            # التقاط طلب الإلغاء المخصص
             if str(e) == "DOWNLOAD_CANCELLED":
                 print("[*] 🛑 Download was manually cancelled.")
                 if self._delete_parts:
-                    # عملية مسح الملفات غير المكتملة
+                    # مسح الملفات غير المكتملة
                     for fpath in self.downloaded_filepaths:
-                        # yt-dlp قد يخلف ملفات بصيغ مختلفة عند الفشل
                         for ext in ['', '.part', '.ytdl']:
                             f = fpath + ext
                             if os.path.exists(f):
