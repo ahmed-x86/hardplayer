@@ -1,23 +1,30 @@
-name: HardPlayer Evolution (v21.0.0)
+name: HardPlayer Evolution (v22.0.0)
 
 on:
   push:
     tags:
-      - 'v21*'
+      - 'v22*'
 
 permissions:
   contents: write
 
 jobs:
   build:
-    name: Build & Package (${{ matrix.arch }})
-    runs-on: ${{ matrix.os }}
+    name: Build (${{ matrix.variant }})
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          - arch: x86_64
-            os: ubuntu-latest
+          # النسخة الكاملة: مدمج معها PyQt6 (أكبر حجماً، تعمل على أي توزيعة)
+          - variant: standalone
+            pkg_suffix: standalone
+            arch: x86_64
+
+          # النسخة الخفيفة: تعتمد على PyQt6 من النظام (أصغر بكثير، للمحترفين)
+          - variant: system-qt
+            pkg_suffix: system-qt
+            arch: x86_64
 
     steps:
       - name: Checkout Code
@@ -28,129 +35,123 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install OS Packaging Tools & Dependencies
+      - name: Install OS Packaging Tools
         run: |
           sudo apt-get update
           sudo apt-get install -y ruby ruby-dev rubygems build-essential rpm libarchive-tools zstd libdbus-1-dev libgirepository1.0-dev libcairo2-dev
           sudo gem install --no-document fpm
 
-      - name: Install Build Dependencies
+      - name: Install Build Dependencies (Standalone)
+        if: matrix.variant == 'standalone'
         run: |
           python -m pip install --upgrade pip
-          # ── CRITICAL FIX ──────────────────────────────────────────────────────
-          # yt-dlp is intentionally EXCLUDED from pip install.
-          # It is a declared fpm system dependency (-d yt-dlp), meaning the OS
-          # package manager provides it at runtime. Adding it to pip caused Nuitka
-          # to discover and bundle the entire yt-dlp source tree (hundreds of files)
-          # via --follow-imports, which is what exploded build time to 80+ minutes
-          # and massively inflated package size in v19. It must never be pip-installed
-          # in this build environment.
-          # ──────────────────────────────────────────────────────────────────────
+          # تثبيت PyQt6 هنا ليقوم Nuitka بدمجه
           pip install PyQt6 python-mpv nuitka zstandard ordered-set dbus-python "PyGObject<3.51.0"
 
-      # ── CACHING STRATEGY (as advised) ───────────────────────────────────────
-      # Nuitka's compilation speed depends heavily on two cache layers:
-      #
-      # 1. __pycache__  — Python's bytecode cache (.pyc files). Nuitka reads these
-      #    during its import-tracing phase. When present, Nuitka can resolve module
-      #    dependencies without re-parsing raw .py source, significantly cutting the
-      #    dependency-graph analysis phase.
-      #
-      # 2. ~/.cache/Nuitka — Nuitka's own C compilation cache (Scons + ccache).
-      #    On cache hit, already-compiled C translation units are reused directly,
-      #    skipping the most expensive gcc/clang compilation step entirely.
-      #
-      # Cache key is hashed on hardplayer.py so a source change invalidates the
-      # cache and forces a clean recompile. The restore-keys fallback allows a
-      # partial cache hit (e.g., after a source change) to still warm C-level caches.
-      # ────────────────────────────────────────────────────────────────────────
-      - name: Restore Nuitka Compilation Cache (__pycache__ & C-cache)
+      - name: Install Build Dependencies (System-Qt)
+        if: matrix.variant == 'system-qt'
+        run: |
+          python -m pip install --upgrade pip
+          # تثبيت PyQt6 من النظام وليس Pip
+          sudo apt-get install -y python3-pyqt6
+          # تثبيت الأدوات المساعدة فقط بدون PyQt6
+          pip install python-mpv nuitka zstandard ordered-set dbus-python "PyGObject<3.51.0"
+
+      # ── FIX: كاش لا يتأثر بتغيير الإصدار (v22 -> v23 لن يكسر الكاش) ──
+      - name: Restore Nuitka Cache
         uses: actions/cache@v4
         with:
           path: |
             __pycache__
             ~/.cache/Nuitka
-          key: ${{ runner.os }}-nuitka-v21-${{ matrix.arch }}-${{ hashFiles('hardplayer.py') }}
+          key: ${{ runner.os }}-nuitka-${{ matrix.variant }}-${{ hashFiles('**/*.py') }}
           restore-keys: |
-            ${{ runner.os }}-nuitka-v21-${{ matrix.arch }}-
+            ${{ runner.os }}-nuitka-${{ matrix.variant }}-
 
-      - name: Build with Nuitka & Setup Desktop Entry
+      - name: Compile with Nuitka
         run: |
-          python -m nuitka \
-            --standalone \
-            --remove-output \
-            --enable-plugin=pyqt6 \
-            --follow-imports \
-            --assume-yes-for-downloads \
-            --nofollow-import-to=yt_dlp \
-            hardplayer.py
-          # ── WHY --nofollow-import-to=yt_dlp ──────────────────────────────────
-          # This flag is the programmatic equivalent of the deleted project-options
-          # file. It explicitly instructs Nuitka to treat the `yt_dlp` namespace as
-          # an external/system dependency and stop tracing into it, even though
-          # hardplayer.py imports from it. Without this guard, --follow-imports
-          # causes Nuitka to recurse into all ~300+ yt-dlp submodules, compile each
-          # to C, and bundle the resulting objects — the exact regression in v19.
-          # ─────────────────────────────────────────────────────────────────────
+          # الأساسيات المشتركة
+          OPTS="--standalone --remove-output --follow-imports --assume-yes-for-downloads --nofollow-import-to=yt_dlp"
+          
+          # إضافات بناءً على النوع
+          if [ "${{ matrix.variant }}" = "standalone" ]; then
+            OPTS="$OPTS --enable-plugin=pyqt6"
+          else
+            OPTS="$OPTS --nofollow-import-to=PyQt6"
+          fi
 
+          python -m nuitka $OPTS hardplayer.py
+
+      - name: Stage Package Tree
+        run: |
           rm -f hardplayer.dist/libssl.so* hardplayer.dist/libcrypto.so*
-
-          mkdir -p package_root/opt/hardplayer
-          mkdir -p package_root/usr/bin
+          mkdir -p package_root/opt/hardplayer package_root/usr/bin
           cp -r hardplayer.dist/* package_root/opt/hardplayer/
           mv package_root/opt/hardplayer/hardplayer.bin package_root/opt/hardplayer/hardplayer-bin
-
           cp icon_in_app.png package_root/opt/hardplayer/
-
-          echo '#!/bin/bash' > package_root/usr/bin/hardplayer
-          echo 'export LD_LIBRARY_PATH=/opt/hardplayer:$LD_LIBRARY_PATH' >> package_root/usr/bin/hardplayer
-          echo 'export QT_PLUGIN_PATH=/opt/hardplayer/PyQt6/Qt6/plugins' >> package_root/usr/bin/hardplayer
-          echo 'exec /opt/hardplayer/hardplayer-bin "$@"' >> package_root/usr/bin/hardplayer
-          chmod +x package_root/usr/bin/hardplayer
-
-          mkdir -p package_root/usr/share/pixmaps
-          mkdir -p package_root/usr/share/applications
+          
+          # إنشاء ملف الـ Desktop
+          mkdir -p package_root/usr/share/pixmaps package_root/usr/share/applications
           cp icon.png package_root/usr/share/pixmaps/hardplayer.png
-
           cat <<EOF > package_root/usr/share/applications/hardplayer.desktop
           [Desktop Entry]
-          Name=HardPlayer
-          Comment=Pro Media Player with Advanced YouTube Downloader
+          Name=HardPlayer (${{ matrix.variant }})
+          Comment=Pro Media Player (Variant: ${{ matrix.variant }})
           Exec=hardplayer %U
           Icon=hardplayer
           Terminal=false
           Type=Application
           Categories=AudioVideo;Video;Player;
           MimeType=video/mp4;video/x-matroska;video/webm;video/x-msvideo;video/quicktime;video/x-flv;audio/mpeg;audio/x-wav;audio/flac;
-          StartupNotify=true
           EOF
 
-      - name: Generate Production Packages (DEB, RPM, Pacman)
+      - name: Create Launcher Script
         run: |
-          DESC="HardPlayer v21: UX Overhaul with cascading menus and custom download locations."
-          VER="21.0.0"
-          ARCH="${{ matrix.arch }}"
+          cat <<'EOF' > package_root/usr/bin/hardplayer
+          #!/bin/bash
+          export LD_LIBRARY_PATH=/opt/hardplayer:$LD_LIBRARY_PATH
+          # لو النسخة system-qt، نوجه البرنامج لمكتبات بايثون النظام
+          if [ -d "/usr/lib/python3/dist-packages" ]; then
+            export PYTHONPATH=/usr/lib/python3/dist-packages:$PYTHONPATH
+          fi
+          # لو النسخة standalone، نوجه للـ Plugins المدمجة
+          if [ -d "/opt/hardplayer/PyQt6/Qt6/plugins" ]; then
+            export QT_PLUGIN_PATH=/opt/hardplayer/PyQt6/Qt6/plugins
+          fi
+          exec /opt/hardplayer/hardplayer-bin "$@"
+          EOF
+          chmod +x package_root/usr/bin/hardplayer
 
-          fpm -s dir -t deb -n hardplayer -v $VER -a $ARCH --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d aria2 -C package_root .
-          fpm -s dir -t rpm -n hardplayer -v $VER -a $ARCH --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d aria2 -C package_root .
-          fpm -s dir -t pacman -n hardplayer -v $VER -a $ARCH --description "$DESC" -d mpv -d ffmpeg -d yt-dlp -d aria2 -C package_root .
+      - name: Build Packages (DEB, RPM, Pacman)
+        run: |
+          VER="22.0.0"
+          PKG_NAME="hardplayer-${{ matrix.pkg_suffix }}"
+          DEPS="-d mpv -d ffmpeg -d yt-dlp -d aria2"
+          
+          # إضافة PyQt6 كاعتمادية نظام فقط في نسخة الـ System-Qt
+          if [ "${{ matrix.variant }}" = "system-qt" ]; then
+             DEPS="$DEPS -d python3-pyqt6"
+          fi
 
-      - name: Deploy Release Assets
+          fpm -s dir -t deb -n $PKG_NAME -v $VER -a amd64 $DEPS -C package_root .
+          fpm -s dir -t rpm -n $PKG_NAME -v $VER -a x86_64 $DEPS -C package_root .
+          fpm -s dir -t pacman -n $PKG_NAME -v $VER -a x86_64 $DEPS -C package_root .
+
+      - name: Deploy Assets
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/v21')
+        if: startsWith(github.ref, 'refs/tags/v22')
         with:
-          name: HardPlayer v21.0.0 - UX Overhaul & Custom Locations 🚀
+          name: HardPlayer v22.0.0 - Dual Variant Release 🚀
           body: |
             ## 📥 Download Links
-            | Architecture | Ubuntu / Debian | Fedora / Suse | Arch Linux |
-            | :--- | :--- | :--- | :--- |
-            | **x86-64 (64-bit)** | [Download DEB](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer_21.0.0_amd64.deb) | [Download RPM](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-21.0.0-1.x86_64.rpm) | [Download Pacman](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-21.0.0-1-x86_64.pkg.tar.zst) |
+            
+            ### 🔵 Standalone Build (Includes Qt6)
+            *Recommended for Ubuntu, Fedora, and General Linux.*
+            * [DEB](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-standalone_22.0.0_amd64.deb) | [RPM](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-standalone-22.0.0-1.x86_64.rpm) | [Pacman](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-standalone-22.0.0-1-x86_64.pkg.tar.zst)
 
-            ---
-
-            ### ✨ What's New in v21.0.0?
-            * **UX Improvements:** Fully reorganized the top menus (Hardware and YouTube) using cascading sub-menus for a cleaner, more intuitive interface.
-            * **Custom Download Location:** Added a new feature to select and save a specific directory for YouTube videos and metadata info (.txt) files directly from the top menu.
+            ### 🟢 System-Qt Build (Uses Native Qt6)
+            *Lightweight, requires `python3-pyqt6` installed on system.*
+            * [DEB](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-system-qt_22.0.0_amd64.deb) | [RPM](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-system-qt-22.0.0-1.x86_64.rpm) | [Pacman](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-system-qt-22.0.0-1-x86_64.pkg.tar.zst)
           files: |
             *.deb
             *.rpm
