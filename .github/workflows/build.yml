@@ -1,9 +1,9 @@
-name: HardPlayer Evolution (v22.3.0)
+name: HardPlayer Evolution (v22.4.0)
 
 on:
   push:
     tags:
-      - 'v22.3*'
+      - 'v22.4*'
 
 permissions:
   contents: write
@@ -79,7 +79,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             ruby ruby-dev rubygems build-essential rpm \
-            libarchive-tools zstd
+            libarchive-tools zstd \
+            libdbus-1-dev libgirepository1.0-dev libcairo2-dev
           sudo gem install --no-document fpm
 
       # ── 4a. تبعيات Python (Standalone) ───────────────────────────────────────
@@ -278,12 +279,12 @@ jobs:
       # في أمر واحد.
       - name: Build Packages (DEB, RPM, Pacman)
         run: |
-          VER="22.3.0"
+          VER="22.4.0"
           PKG_NAME="hardplayer-${{ matrix.pkg_suffix }}"
           BASE_DEPS="-d mpv -d ffmpeg -d yt-dlp -d aria2"
 
           if [ "${{ matrix.variant }}" = "standalone" ]; then
-            DESC="HardPlayer v22.3.0 Standalone: Self-contained with fully bundled Qt6. No Qt installation required."
+            DESC="HardPlayer v22.4.0 Standalone: Self-contained with fully bundled Qt6. No Qt installation required."
 
             # Standalone: لا تبعية Qt — Qt مدمجة بالكامل داخل الحزمة
             fpm -s dir -t deb    -n "$PKG_NAME" -v "$VER" -a amd64  \
@@ -301,24 +302,24 @@ jobs:
           else
             # ── System-Qt: نضيف تبعية python3 + PyQt6 من حزم النظام ──────────
             # python3 مطلوب في runtime لتشغيل hardplayer.py
-            DESC="HardPlayer v22.3.0 System-Qt: Lightweight pure Python build. Requires system python3 and PyQt6."
+            DESC="HardPlayer v22.4.0 System-Qt: Lightweight pure Python build. Requires system python3 and PyQt6."
 
             # DEB (Debian/Ubuntu)
             fpm -s dir -t deb    -n "$PKG_NAME" -v "$VER" -a amd64  \
                 --description "$DESC" $BASE_DEPS                      \
-                -d python3 -d python3-pyqt6                           \
+                -d python3 -d python3-pyqt6 -d python3-mpv -d python3-dbus \
                 -C package_root .
 
             # RPM (Fedora/SUSE)
             fpm -s dir -t rpm    -n "$PKG_NAME" -v "$VER" -a x86_64  \
                 --description "$DESC" $BASE_DEPS                      \
-                -d python3 -d python3-pyqt6                           \
+                -d python3 -d python3-pyqt6 -d python3-mpv -d python3-dbus \
                 -C package_root .
 
             # Pacman (Arch) — python-pyqt6 بدون "3"
             fpm -s dir -t pacman -n "$PKG_NAME" -v "$VER" -a x86_64  \
                 --description "$DESC" $BASE_DEPS                      \
-                -d python -d python-pyqt6                             \
+                -d python -d python-pyqt6 -d python-mpv -d dbus-python \
                 -C package_root .
           fi
 
@@ -328,9 +329,9 @@ jobs:
       # System-Qt يُلحق ملفاته فقط لتجنب race condition على metadata.
       - name: Create Release & Upload Standalone Assets
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/v22.3') && matrix.variant == 'standalone'
+        if: startsWith(github.ref, 'refs/tags/v22.4') && matrix.variant == 'standalone'
         with:
-          name: "HardPlayer v22.3.0 — Accelerated Native Engine 🚀"
+          name: "HardPlayer v22.4.0 — Accelerated Native Engine 🚀"
           body: |
             ## 📥 Download Links
 
@@ -339,7 +340,7 @@ jobs:
 
             | | Ubuntu / Debian | Fedora / SUSE | Arch Linux |
             |---|---|---|---|
-            | **x86-64** | [📦 DEB](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-standalone_22.3.0_amd64.deb) | [📦 RPM](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-standalone-22.3.0-1.x86_64.rpm) | [📦 Pacman](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-standalone-22.3.0-1-x86_64.pkg.tar.zst) |
+            | **x86-64** | [📦 DEB](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-standalone_22.4.0_amd64.deb) | [📦 RPM](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-standalone-22.4.0-1.x86_64.rpm) | [📦 Pacman](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-standalone-22.4.0-1-x86_64.pkg.tar.zst) |
 
             ---
 
@@ -350,12 +351,14 @@ jobs:
 
             | | Ubuntu / Debian | Fedora / SUSE | Arch Linux |
             |---|---|---|---|
-            | **x86-64** | [📦 DEB](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-system-qt_22.3.0_amd64.deb) | [📦 RPM](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-system-qt-22.3.0-1.x86_64.rpm) | [📦 Pacman](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-system-qt-22.3.0-1-x86_64.pkg.tar.zst) |
+            | **x86-64** | [📦 DEB](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-system-qt_22.4.0_amd64.deb) | [📦 RPM](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-system-qt-22.4.0-1.x86_64.rpm) | [📦 Pacman](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-system-qt-22.4.0-1-x86_64.pkg.tar.zst) |
 
             ---
 
-            ### 🔧 What's Changed in v22.3.0?
+            ### 🔧 What's Changed in v22.4.0?
 
+            * **🛠️ Standalone Build Fix:** Restored missing C-headers (`libdbus-1-dev`, `libcairo2-dev`) to successfully compile `dbus-python`.
+            * **📦 System-Qt Runtime Dependencies:** Added `python-mpv` and `dbus-python` to FPM dependencies.
             * **📁 System-Qt Packaging Fix:** Correctly included the `convert/` directory in the Pure Python build, restoring all conversion APIs and features that were missing in the previous release.
             * **🔥 libpython ABI Fix (System-Qt):** Retains the pure Python package architecture — executing directly via the host's `python3` to eliminate `libpython` mismatches on Arch, Fedora, and any distro with a different Python version than the CI build host.
             * **🗺️ Universal PYTHONPATH Discovery:** The launcher uses `site.getsitepackages()` to locate PyQt6 dynamically at runtime, working correctly on any distribution regardless of Python version.
@@ -373,7 +376,7 @@ jobs:
       # هذا الـ step يُلحق الملفات فقط دون لمس metadata الـ release.
       - name: Upload System-Qt Assets to Existing Release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/v22.3') && matrix.variant == 'system-qt'
+        if: startsWith(github.ref, 'refs/tags/v22.4') && matrix.variant == 'system-qt'
         with:
           files: |
             *.deb
