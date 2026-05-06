@@ -1,24 +1,52 @@
 # youtube_feature.py
 
-import os # تمت الإضافة للتعامل مع مسح الملفات
+import os 
 import subprocess
 import urllib.request
+from urllib.parse import urlparse, parse_qs
 import json
-import re # مطلوب لإزالة الرموز الغريبة
+import re
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, 
                              QLabel, QTextEdit, QLineEdit, QPushButton,
                              QScrollArea, QWidget, QFrame)
 from PyQt6.QtCore import QTimer, Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QFont, QPixmap
-from pathlib import Path # مطلوب للتعامل مع المسارات
+from pathlib import Path
 
-# التوصيل بملفك الجديد لاستخراج الصور المصغرة
+ 
 from get_youtube_thumbnail import get_youtube_thumbnail
 
 # دالة لتنظيف النصوص من أكواد ANSI (الرموز الغريبة مثل [0;32m)
 def clean_ansi(text):
     ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
     return ansi_escape.sub('', str(text))
+
+# دالة لتنظيف رابط اليوتيوب لاستخراج المعرف الأساسي للفيديو فقط
+def clean_youtube_url(url):
+    try:
+        parsed_url = urlparse(url)
+        
+        # 1. إذا كان الرابط بالشكل العادي (youtube.com/watch?v=...)
+        if 'youtube.com' in parsed_url.netloc and '/watch' in parsed_url.path:
+            query_params = parse_qs(parsed_url.query)
+            if 'v' in query_params:
+                video_id = query_params['v'][0]
+                return f"https://www.youtube.com/watch?v={video_id}"
+        
+        # 2. إذا كان الرابط مختصر (youtu.be/...)
+        elif 'youtu.be' in parsed_url.netloc:
+            video_id = parsed_url.path.lstrip('/')
+            return f"https://www.youtube.com/watch?v={video_id}"
+            
+        # 3. إذا كان الرابط من يوتيوب شورتس (youtube.com/shorts/...)
+        elif 'youtube.com' in parsed_url.netloc and '/shorts/' in parsed_url.path:
+            video_id = parsed_url.path.split('/shorts/')[-1].split('?')[0]
+            return f"https://www.youtube.com/watch?v={video_id}"
+            
+    except Exception as e:
+        print(f"[*] ⚠️ URL parsing error: {e}")
+        
+    return url
 
 class YouTubeSimpleQualityDialog(QDialog):
     """
@@ -27,7 +55,7 @@ class YouTubeSimpleQualityDialog(QDialog):
     """
     def __init__(self, yt_url, parent=None):
         super().__init__(parent)
-        self.yt_url = yt_url
+        self.yt_url = clean_youtube_url(yt_url) # تنظيف الرابط هنا
         self.format_code = None
         self.setWindowTitle("Select Video Quality")
         self.setFixedSize(350, 500)
@@ -208,7 +236,7 @@ class YouTubeSimpleQualityDialog(QDialog):
 class YouTubeQualityDialog(QDialog):
     def __init__(self, yt_url, mode="play", parent=None):
         super().__init__(parent)
-        self.yt_url = yt_url
+        self.yt_url = clean_youtube_url(yt_url) # تنظيف الرابط هنا
         self.format_code = "best"
         self.mode = mode  # تحديد وضع النافذة (تشغيل أم تحميل)
         
@@ -225,7 +253,7 @@ class YouTubeQualityDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
         
-        lbl = QLabel(f"🔗 URL: {yt_url}\n⏳ Fetching formats, please wait...")
+        lbl = QLabel(f"🔗 URL: {self.yt_url}\n⏳ Fetching formats, please wait...")
         lbl.setFont(QFont("Arial", 10, QFont.Weight.Bold))
         layout.addWidget(lbl)
         
@@ -504,7 +532,7 @@ class YTInfoFetcher(QThread):
 
     def __init__(self, url):
         super().__init__()
-        self.url = url
+        self.url = clean_youtube_url(url) # تنظيف الرابط هنا
 
     def run(self):
         try:
@@ -527,7 +555,7 @@ class DownloadWorker(QThread):
 
     def __init__(self, url, format_id, dl_options=None):
         super().__init__()
-        self.url = url
+        self.url = clean_youtube_url(url) # تنظيف الرابط هنا
         self.format_id = format_id
         self.dl_options = dl_options or {}
         
@@ -536,6 +564,12 @@ class DownloadWorker(QThread):
         self._delete_parts = False
         self.process = None # لحفظ كائن العملية للتمكن من قتلها
         self.downloaded_filepaths = set() # لحفظ مسارات الملفات قيد التحميل لتنظيفها لاحقاً
+        
+        # متغيرات تتبع الأحجام والتيار (فيديو أم صوت)
+        self.current_stream = "Video"
+        self.video_size = "Unknown"
+        self.audio_size = "Unknown"
+        self.dest_count = 0
 
     def abort(self, delete_parts):
         """دالة لإرسال أمر إيقاف التحميل وإنهاء العملية النظامية"""
@@ -547,13 +581,28 @@ class DownloadWorker(QThread):
     def run(self):
         # جلب مسار التحميل المخصص من الكاش
         path_file = Path.home() / ".cache" / "hardplayer" / "download_path.txt"
-        output_template = '%(title)s.%(ext)s' # القالب الافتراضي
+        output_template = '%(title)s [%(id)s].%(ext)s' # القالب الافتراضي
+        target_dir = os.getcwd() # مسار افتراضي لحفظ ملف الاستكمال
         
         if path_file.exists():
             custom_path = path_file.read_text(encoding="utf-8").strip()
             if custom_path and os.path.exists(custom_path):
+                target_dir = custom_path
                 # دمج المجلد المختار مع قالب اسم الملف
-                output_template = os.path.join(custom_path, '%(title)s.%(ext)s')
+                output_template = os.path.join(custom_path, '%(title)s [%(id)s].%(ext)s')
+
+        # حفظ بيانات التحميل لتمكين الاستكمال لاحقاً
+        self.state_file = os.path.join(target_dir, "hardplayer_resume_state.json")
+        state_data = {
+            "url": self.url,
+            "format_id": self.format_id,
+            "options": self.dl_options
+        }
+        try:
+            with open(self.state_file, 'w', encoding='utf-8') as f:
+                json.dump(state_data, f)
+        except Exception as e:
+            print(f"[*] ⚠️ Could not save resume state file: {e}")
 
         # بناء أمر yt-dlp
         cmd = [
@@ -613,27 +662,48 @@ class DownloadWorker(QThread):
 
                 line = clean_ansi(line)
 
-                # البحث عن مسار الملف الذي يتم حفظه
+                # 1. مراقبة الوجهة لمعرفة متى بدأ الفيديو ومتى بدأ الصوت
                 dest_match = dest_regex.search(line)
                 if dest_match:
+                    self.dest_count += 1
+                    if self.dest_count == 1: 
+                        self.current_stream = "Video"
+                    elif self.dest_count == 2: 
+                        self.current_stream = "Audio"
                     self.downloaded_filepaths.add(dest_match.group(1).strip())
-                    
-                # في حالة الدمج (الفيديو والصوت)
+                    continue
+
+                # 2. مراقبة عمليات الدمج والاستخراج لتحديث الواجهة بـ (Merging/Processing)
                 merge_match = merged_regex.search(line)
                 if merge_match:
                     self.downloaded_filepaths.add(merge_match.group(1).strip())
+                    self.progress_signal.emit({'status': 'merging'})
+                    continue
+                    
+                if "[ExtractAudio]" in line or "[Fixup" in line:
+                    self.progress_signal.emit({'status': 'processing'})
+                    continue
 
-                # استخراج بيانات التقدم وإرسالها للواجهة
+                # 3. إرسال بيانات التقدم والأحجام
                 match = progress_regex.search(line)
                 if match:
                     percent_val = float(match.group('percent'))
+                    total_size = match.group('size')
+
+                    if self.current_stream == "Video": 
+                        self.video_size = total_size
+                    elif self.current_stream == "Audio": 
+                        self.audio_size = total_size
+
                     clean_data = {
                         'status': 'downloading',
                         'percent': percent_val,
-                        '_percent_str': f"{percent_val:.1f}%",
                         '_speed_str': match.group('speed') if match.group('speed') else 'N/A',
                         '_eta_str': match.group('eta') if match.group('eta') else '00:00',
-                        '_total_bytes_str': match.group('size')
+                        '_total_bytes_str': total_size,
+                        'current_stream': self.current_stream,
+                        'video_size': self.video_size,
+                        'audio_size': self.audio_size
                     }
                     self.progress_signal.emit(clean_data)
 
@@ -645,6 +715,12 @@ class DownloadWorker(QThread):
                 
             # إرسال إشارة الانتهاء إذا كانت العملية ناجحة
             if self.process.returncode == 0 or self.process.returncode == 1:
+                # التحميل اكتمل بنجاح، امسح ملف الاستكمال
+                if hasattr(self, 'state_file') and os.path.exists(self.state_file):
+                    try:
+                        os.remove(self.state_file)
+                    except Exception:
+                        pass
                 self.finished_signal.emit()
 
         except ValueError as e:
@@ -662,4 +738,3 @@ class DownloadWorker(QThread):
                                     pass
         except Exception as e:
             print(f"[*] ⚠️ Download Worker Error: {e}")
-            
