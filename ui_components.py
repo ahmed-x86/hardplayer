@@ -2,6 +2,7 @@
 
 import subprocess
 import os # تمت الإضافة للتعامل مع المسارات
+import re # تمت الإضافة لحساب حجم التحميل
 from pathlib import Path # مطلوب للوصول للكاش
 from PyQt6.QtWidgets import (QWidget, QDialog, QVBoxLayout, QHBoxLayout, 
                              QLabel, QPushButton, QLineEdit, QSlider, QFrame, 
@@ -422,7 +423,7 @@ class DownloadProgressDialog(QDialog):
     def __init__(self, info, format_code, quality_name, dl_options, parent=None):
         super().__init__(parent)
         self.setWindowTitle("HardPlayer - Acquiring Stream")
-        self.setFixedWidth(520)
+        self.setFixedWidth(540)
         self.setStyleSheet("background-color: #11111b; color: #cdd6f4;")
         
         # حفظ ملف المعلومات فوراً إذا تم اختياره
@@ -457,7 +458,9 @@ class DownloadProgressDialog(QDialog):
         date_fmt = f"{date_raw[:4]}-{date_raw[4:6]}-{date_raw[6:]}"
         
         # تفاصيل العرض الموسعة
-        self.name_lbl = QLabel(f"<b>📄 Name:</b> {info.get('title', 'Unknown')[:45]}...")
+        self.name_lbl = QLabel(f"<b>📄 Name:</b> {info.get('title', 'Unknown')}")
+        self.name_lbl.setWordWrap(True)
+        
         self.uploader_lbl = QLabel(f"<b>👤 Channel:</b> {info.get('uploader', 'N/A')}")
         self.date_lbl = QLabel(f"<b>📅 Date:</b> {date_fmt}")
         
@@ -467,8 +470,18 @@ class DownloadProgressDialog(QDialog):
         self.stats_lbl = QLabel(f"<b>👍 Likes:</b> {likes:,} | <b>💬 Comments:</b> {comments:,}")
         
         # تفاصيل الملف التقنية
-        self.qual_lbl = QLabel(f"<b>🎬 Quality:</b> {quality_name} | <b>📁 Ext:</b> {info.get('ext', 'N/A')}")
-        self.size_lbl = QLabel(f"<b>📦 Filesize:</b> Calculating...")
+        ext_val = info.get('ext', 'N/A')
+        if format_code:
+            if 'ext=mp4' in format_code:
+                ext_val = 'mp4'
+            elif 'ext=webm' in format_code:
+                ext_val = 'webm'
+            elif 'ext=m4a' in format_code:
+                ext_val = 'm4a'
+                
+        self.qual_lbl = QLabel(f"<b>🎬 Quality:</b> {quality_name} | <b>📁 Ext:</b> {ext_val}")
+        self.size_lbl = QLabel(f"<b>📦 Size:</b> Calculating...")
+        self.size_lbl.setWordWrap(True)
         
         for lbl in [self.name_lbl, self.uploader_lbl, self.date_lbl, self.stats_lbl, self.qual_lbl, self.size_lbl]:
             info_layout.addWidget(lbl)
@@ -645,8 +658,46 @@ class DownloadProgressDialog(QDialog):
             eta = d.get('_eta_str', '00:00')
             
             self.pbar.setFormat(f"{percent:.1f}% | Speed: {speed}")
-            self.size_lbl.setText(f"<b>📦 Filesize:</b> {d.get('_total_bytes_str', 'N/A')}")
+            
+            v_size = d.get('video_size', 'Unknown')
+            a_size = d.get('audio_size', 'Unknown')
+            curr_stream = d.get('current_stream', 'Video')
+            total_str = d.get('_total_bytes_str', '0')
+            
+            # حساب الكمية المحملة فعلياً (كم ميجا نزلت)
+            downloaded_str = "Unknown"
+            m = re.match(r"([0-9\.]+)([a-zA-Z]+)", total_str)
+            if m:
+                try:
+                    val = float(m.group(1))
+                    unit = m.group(2)
+                    dl_val = val * (percent / 100.0)
+                    downloaded_str = f"{dl_val:.2f}{unit}"
+                except:
+                    pass
+            
+            # عرض الحجم بالتفصيل
+            size_text = (f"<b>📦 Video Size:</b> {v_size} | <b>🎵 Audio Size:</b> {a_size}<br>"
+                         f"<b>⬇️ Downloading ({curr_stream}):</b> {downloaded_str} / {total_str}")
+            self.size_lbl.setText(size_text)
+            
             self.time_left_lbl.setText(f"Time Left: {eta}")
+            self.status_lbl.setText("Downloading...")
+            self.status_lbl.setStyleSheet("color: #bac2de; font-size: 12px;")
+            
+        elif d['status'] == 'merging':
+            self.pbar.setValue(100)
+            self.pbar.setFormat("100% | Merging...")
+            self.status_lbl.setText("Merging Video & Audio... Please wait ⏳")
+            self.status_lbl.setStyleSheet("color: #f9e2af; font-weight: bold; font-size: 13px;")
+            self.time_left_lbl.setText("Time Left: 00:00")
+            
+        elif d['status'] == 'processing':
+            self.pbar.setValue(100)
+            self.pbar.setFormat("100% | Processing...")
+            self.status_lbl.setText("Processing file... Please wait ⏳")
+            self.status_lbl.setStyleSheet("color: #f9e2af; font-weight: bold; font-size: 13px;")
+            self.time_left_lbl.setText("Time Left: 00:00")
 
     def on_finished(self):
         self.pbar.setValue(100)
