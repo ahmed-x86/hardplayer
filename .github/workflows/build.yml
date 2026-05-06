@@ -1,4 +1,4 @@
-name: HardPlayer Evolution (v23.0.1)
+name: HardPlayer Evolution (v23.0.2)
 
 on:
   push:
@@ -100,9 +100,9 @@ jobs:
       - name: Build Packages (DEB, RPM, Pacman)
         run: |
           export PATH="$PATH:$(ruby -e 'print Gem.bindir'):$(ruby -e 'print Gem.user_dir')/bin"
-          VER="23.0.1"
+          VER="23.0.2"
           PKG_NAME="hardplayer-standalone"
-          DESC="HardPlayer v23.0.1 Standalone: Self-contained with fully bundled Qt6. No Qt installation required."
+          DESC="HardPlayer v23.0.2 Standalone: Self-contained with fully bundled Qt6. No Qt installation required."
           BASE_DEPS="-d mpv -d ffmpeg -d yt-dlp -d aria2"
 
           fpm -s dir -t deb    -n "$PKG_NAME" -v "$VER" -a amd64  --description "$DESC" $BASE_DEPS -C package_root .
@@ -113,25 +113,25 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/v23.0')
         with:
-          name: "HardPlayer v23.0.1 — True Compiled Engine 🚀"
+          name: "HardPlayer v23.0.2 — True Compiled Engine 🚀"
           body: |
             ## 📥 Download Links
 
             | Variant | Ubuntu / Debian (DEB) | Fedora / Suse (RPM) | Arch Linux (Pacman) |
             | :--- | :--- | :--- | :--- |
-            | **Standalone (Bundled Qt)** | [Download DEB](https://github.com/${{ github.repository }}/releases/download/v23.0.1/hardplayer-standalone_23.0.1_amd64.deb) | [Download RPM](https://github.com/${{ github.repository }}/releases/download/v23.0.1/hardplayer-standalone-23.0.1-1.x86_64.rpm) | [Download Pacman](https://github.com/${{ github.repository }}/releases/download/v23.0.1/hardplayer-standalone-23.0.1-1-x86_64.pkg.tar.zst) |
-            | **System-Qt (Lightweight)** | [Download DEB](https://github.com/${{ github.repository }}/releases/download/v23.0.1/hardplayer-system-qt_23.0.1_amd64.deb) | [Download RPM](https://github.com/${{ github.repository }}/releases/download/v23.0.1/hardplayer-system-qt-23.0.1-1.x86_64.rpm) | [Download Pacman](https://github.com/${{ github.repository }}/releases/download/v23.0.1/hardplayer-system-qt-23.0.1-1-x86_64.pkg.tar.zst) |
+            | **Standalone (Bundled Qt)** | [Download DEB](https://github.com/${{ github.repository }}/releases/download/v23.0.2/hardplayer-standalone_23.0.2_amd64.deb) | [Download RPM](https://github.com/${{ github.repository }}/releases/download/v23.0.2/hardplayer-standalone-23.0.2-1.x86_64.rpm) | [Download Pacman](https://github.com/${{ github.repository }}/releases/download/v23.0.2/hardplayer-standalone-23.0.2-1-x86_64.pkg.tar.zst) |
+            | **System-Qt (Lightweight)** | [Download DEB](https://github.com/${{ github.repository }}/releases/download/v23.0.2/hardplayer-system-qt_23.0.2_amd64.deb) | [Download RPM](https://github.com/${{ github.repository }}/releases/download/v23.0.2/hardplayer-system-qt-23.0.2-1.x86_64.rpm) | [Download Pacman](https://github.com/${{ github.repository }}/releases/download/v23.0.2/hardplayer-system-qt-23.0.2-1-x86_64.pkg.tar.zst) |
 
             ---
 
-            ### 🔧 What's Changed in v23.0.1?
+            ### 🔧 What's Changed in v23.0.2?
 
             * **Robust Download Resumption**: Integrated a state-management system (`.json` tracking) for interrupted or manually cancelled downloads. HardPlayer will now automatically detect leftover `.part` files and resume the download exactly from where it left off, saving bandwidth and time.
             * **Smart YouTube URL Parsing**: Implemented a robust URL cleaner that automatically sanitizes user inputs. It strips unwanted parameters (like `&t=` timestamps or `&list=` playlists) to prevent erratic `yt-dlp` behavior and ensure accurate video metadata fetching.
             * **Extended Filename & UI WordWrap**: Removed arbitrary slicing on long video titles. The UI now dynamically wraps text to display the full name flawlessly. Additionally, downloaded files now append the unique YouTube `[ID]` to their names to completely prevent overwriting or naming conflicts.
             * **Granular Progress & Merging Status**: The progress UI is now fully stream-aware. It explicitly displays separate sizes for Video and Audio streams, calculates the exact downloaded megabytes, and transitions to a clear "Merging Video & Audio... Please wait ⏳" status when `ffmpeg` is finalizing the file.
             * **True Compiled System-Qt Engine**: System-Qt variant is now compiled securely inside separate OS containers (Arch, Fedora, Ubuntu) directly into a high-performance C++ binary linked specifically to that distro's Python libraries, maximizing performance and eliminating Python script exposures.
-            * **Hotfix 23.0.1**: Fixed build pipeline FPM dependency pathing and OS package naming conventions for dynamic compiled targets.
+            * **Hotfix 23.0.2**: Completely overhauled container build environments. OS libraries (PyQt6, DBus, GObject) are now strictly fetched via native package managers (pacman/dnf/apt) instead of `pip`, eliminating all missing C-header compilation failures and `--break-system-packages` pip errors.
           files: |
             *.deb
             *.rpm
@@ -156,25 +156,31 @@ jobs:
             container: archlinux:base-devel
             fpm_target: pacman
             pkg_arch_flag: "-a x86_64"
-            install_cmd: "pacman -Syu --noconfirm python python-pip ruby dbus patchelf ccache zstd git"
+            # Arch installs system python-pyqt6, dbus, gobject. No need to build them via pip.
+            install_cmd: "pacman -Syu --noconfirm python python-pip ruby patchelf ccache zstd git python-pyqt6 dbus-python python-gobject pkgconf gcc make"
+            pip_cmd: "python -m pip install --break-system-packages nuitka zstandard ordered-set python-mpv"
             fpm_deps: "-d python -d python-pyqt6 -d python-mpv -d dbus-python"
-            desc: "HardPlayer v23.0.1 System-Qt (Arch): Nuitka-compiled binary linked to Arch's native libpython."
+            desc: "HardPlayer v23.0.2 System-Qt (Arch): Nuitka-compiled binary linked to Arch's native libpython."
 
           - distro: fedora
             container: fedora:latest
             fpm_target: rpm
             pkg_arch_flag: "-a x86_64"
-            install_cmd: "dnf install -y gcc gcc-c++ python3 python3-pip python3-devel dbus-devel ruby ruby-devel rubygems make rpm-build zstd patchelf ccache git findutils"
+            # Fedora installs system python3-qt6, dbus, gobject.
+            install_cmd: "dnf install -y gcc gcc-c++ python3 python3-pip python3-devel ruby ruby-devel rubygems make rpm-build zstd patchelf ccache git findutils python3-qt6 python3-dbus python3-gobject pkgconf-pkg-config"
+            pip_cmd: "python3 -m pip install nuitka zstandard ordered-set python-mpv"
             fpm_deps: "-d python3 -d python3-qt6 -d python3-mpv -d python3-dbus"
-            desc: "HardPlayer v23.0.1 System-Qt (Fedora): Nuitka-compiled binary linked to Fedora's native libpython."
+            desc: "HardPlayer v23.0.2 System-Qt (Fedora): Nuitka-compiled binary linked to Fedora's native libpython."
 
           - distro: ubuntu
             container: ubuntu:22.04
             fpm_target: deb
             pkg_arch_flag: "-a amd64"
-            install_cmd: "apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y gcc g++ python3 python3-pip python3-dev libdbus-1-dev ruby ruby-dev rubygems build-essential rpm libarchive-tools zstd patchelf ccache git"
+            # Ubuntu installs system python3-pyqt6, dbus, gi.
+            install_cmd: "apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y gcc g++ python3 python3-pip python3-dev ruby ruby-dev rubygems build-essential rpm libarchive-tools zstd patchelf ccache git python3-pyqt6 python3-dbus python3-gi pkg-config"
+            pip_cmd: "python3 -m pip install nuitka zstandard ordered-set python-mpv"
             fpm_deps: "-d python3 -d python3-pyqt6 -d python3-mpv -d python3-dbus"
-            desc: "HardPlayer v23.0.1 System-Qt (Ubuntu): Nuitka-compiled binary linked to Ubuntu 22.04's native libpython."
+            desc: "HardPlayer v23.0.2 System-Qt (Ubuntu): Nuitka-compiled binary linked to Ubuntu 22.04's native libpython."
 
     container:
       image: ${{ matrix.container }}
@@ -183,14 +189,15 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Install System Build Tools
+      - name: Install System Build Tools & UI Libraries
         run: ${{ matrix.install_cmd }}
 
       - name: Install fpm
         run: gem install --no-document fpm
 
-      - name: Install Python Libraries for Compilation
-        run: pip3 install --break-system-packages nuitka zstandard ordered-set PyQt6 python-mpv dbus-python "PyGObject<3.51.0"
+      - name: Install Python Compilers (pip)
+        # We exclusively use pip for nuitka & mpv wrapper. PyQt and DBus come from the OS!
+        run: ${{ matrix.pip_cmd }}
 
       - name: Restore Nuitka Compilation Cache
         uses: actions/cache@v4
@@ -242,7 +249,7 @@ jobs:
       - name: Build Package (${{ matrix.fpm_target }})
         run: |
           export PATH="$PATH:$(ruby -e 'print Gem.bindir'):$(ruby -e 'print Gem.user_dir')/bin"
-          VER="23.0.1"
+          VER="23.0.2"
           PKG_NAME="hardplayer-system-qt"
           BASE_DEPS="-d mpv -d ffmpeg -d yt-dlp -d aria2"
 
