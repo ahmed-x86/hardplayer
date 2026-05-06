@@ -1,4 +1,4 @@
-# 🎬 HardPlayer (22.0.0) — Advanced codec converter 🚀
+# 🎬 HardPlayer (23.0.0) — Advanced codec converter 🚀
 
 HardPlayer is a lightweight, high-performance modular media player built with **Python**, **PyQt6**, and the **MPV Engine**. It combines native system integration with a sleek **Catppuccin Mocha** aesthetic and a pro-grade YouTube acquisition engine.
 
@@ -8,7 +8,7 @@ Developed by **Ahmed (ahmed-x86)**, this player follows the "KISS" philosophy, s
 
 ![License](https://img.shields.io/badge/License-GPLv3-blue.svg)
 ![Platform](https://img.shields.io/badge/Platform-Linux%20-lightgrey)
-![Version](https://img.shields.io/badge/Version-22.0.0-mauve)
+![Version](https://img.shields.io/badge/Version-23.0.0-mauve)
 ![Theme](https://img.shields.io/badge/Theme-Catppuccin%20Mocha-blue)
 
 
@@ -18,10 +18,17 @@ Developed by **Ahmed (ahmed-x86)**, this player follows the "KISS" philosophy, s
 
 | Variant | Ubuntu / Debian (DEB) | Fedora / Suse (RPM) | Arch Linux (Pacman) |
 | :--- | :--- | :--- | :--- |
-| **Standalone (Bundled Qt)** | [Download DEB](https://github.com/ahmed-x86/hardplayer/releases/download/v22.0.0/hardplayer-standalone_22.0.0_amd64.deb) | [Download RPM](https://github.com/ahmed-x86/hardplayer/releases/download/v22.0.0/hardplayer-standalone-22.0.0-1.x86_64.rpm) | [Download Pacman](https://github.com/ahmed-x86/hardplayer/releases/download/v22.0.0/hardplayer-standalone-22.0.0-1-x86_64.pkg.tar.zst) |
-| **System-Qt (Lightweight)** | [Download DEB](https://github.com/ahmed-x86/hardplayer/releases/download/v22.0.0/hardplayer-system-qt_22.0.0_amd64.deb) | [Download RPM](https://github.com/ahmed-x86/hardplayer/releases/download/v22.0.0/hardplayer-system-qt-22.0.0-1.x86_64.rpm) | [Download Pacman](https://github.com/ahmed-x86/hardplayer/releases/download/v22.0.0/hardplayer-system-qt-22.0.0-1-x86_64.pkg.tar.zst) |
+| **Standalone (Bundled Qt)** | [Download DEB](https://github.com/ahmed-x86/hardplayer/releases/download/v23.0.0/hardplayer-standalone_23.0.0_amd64.deb) | [Download RPM](https://github.com/ahmed-x86/hardplayer/releases/download/v23.0.0/hardplayer-standalone-23.0.0-1.x86_64.rpm) | [Download Pacman](https://github.com/ahmed-x86/hardplayer/releases/download/v23.0.0/hardplayer-standalone-23.0.0-1-x86_64.pkg.tar.zst) |
+| **System-Qt (Lightweight)** | [Download DEB](https://github.com/ahmed-x86/hardplayer/releases/download/v23.0.0/hardplayer-system-qt_23.0.0_amd64.deb) | [Download RPM](https://github.com/ahmed-x86/hardplayer/releases/download/v23.0.0/hardplayer-system-qt-23.0.0-1.x86_64.rpm) | [Download Pacman](https://github.com/ahmed-x86/hardplayer/releases/download/v23.0.0/hardplayer-system-qt-23.0.0-1-x86_64.pkg.tar.zst) |
 
 ---
+
+## ✨ What's New in v23.0.0?
+
+* **Robust Download Resumption**: Integrated a state-management system (`.json` tracking) for interrupted or manually cancelled downloads. HardPlayer will now automatically detect leftover `.part` files and resume the download exactly from where it left off, saving bandwidth and time.
+* **Smart YouTube URL Parsing**: Implemented a robust URL cleaner that automatically sanitizes user inputs. It strips unwanted parameters (like `&t=` timestamps or `&list=` playlists) to prevent erratic `yt-dlp` behavior and ensure accurate video metadata fetching.
+* **Extended Filename & UI WordWrap**: Removed arbitrary slicing on long video titles. The UI now dynamically wraps text to display the full name flawlessly. Additionally, downloaded files now append the unique YouTube `[ID]` to their names to completely prevent overwriting or naming conflicts.
+* **Granular Progress & Merging Status**: The progress UI is now fully stream-aware. It explicitly displays separate sizes for Video and Audio streams, calculates the exact downloaded megabytes, and transitions to a clear "Merging Video & Audio... Please wait ⏳" status when `ffmpeg` is finalizing the file.
 
 ## ✨ What's New in v22.0.0?
 
@@ -141,13 +148,13 @@ hardplayer -search "test" -quality 720p -device cpu
 ### Arch Linux (Pacman):
 ```bash
 sudo pacman -S aria2  # Required for high-speed downloads
-sudo pacman -U hardplayer-22.0.0-1-x86_64.pkg.tar.zst
+sudo pacman -U hardplayer-23.0.0-1-x86_64.pkg.tar.zst
 ```
 
 ### Debian/Ubuntu (DEB):
 ```bash
 sudo apt install aria2
-sudo dpkg -i hardplayer_22.0.0_x86_64.deb
+sudo dpkg -i hardplayer_23.0.0_x86_64.deb
 ```
 
 ## 📦 Requirements
