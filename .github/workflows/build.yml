@@ -1,9 +1,9 @@
-name: HardPlayer Evolution (v22.4.0)
+name: HardPlayer Evolution (v23.0.0)
 
 on:
   push:
     tags:
-      - 'v22.4*'
+      - 'v23.0*'
 
 permissions:
   contents: write
@@ -19,61 +19,32 @@ permissions:
 #  │                 │ All Qt6 libs bundled into hardplayer.dist.              │
 #  │                 │ Runs on any distro with mpv/ffmpeg/yt-dlp/aria2.        │
 #  ├─────────────────┼─────────────────────────────────────────────────────────┤
-#  │ system-qt       │ PURE PYTHON — NO Nuitka compilation.                   │
-#  │                 │ Packages hardplayer.py directly into /opt/hardplayer/.  │
-#  │                 │ Launcher calls: python3 /opt/hardplayer/hardplayer.py   │
-#  │                 │                                                         │
-#  │                 │ WHY pure Python?                                        │
-#  │                 │ Nuitka without --standalone dynamically links the       │
-#  │                 │ resulting binary to the build host's libpython          │
-#  │                 │ (e.g. libpython3.10.so.1.0 on ubuntu-latest).           │
-#  │                 │ Arch users get a crash at launch because their system   │
-#  │                 │ ships libpython3.12 (or newer). Pure Python packaging   │
-#  │                 │ completely eliminates this ABI mismatch — the launcher  │
-#  │                 │ always calls whatever python3 is installed on the host. │
+#  │ system-qt       │ Nuitka WITHOUT --standalone — compiled natively inside  │
+#  │                 │ OS-specific Docker containers (Arch, Fedora, Ubuntu).   │
+#  │                 │ Each binary links to that distro's own libpython,       │
+#  │                 │ eliminating all ABI mismatches across distributions.    │
 #  └─────────────────┴─────────────────────────────────────────────────────────┘
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# JOB 1 — STANDALONE (build-standalone)
+# ═══════════════════════════════════════════════════════════════════════════════
 jobs:
-  build:
-    name: Build (${{ matrix.variant }})
+  build-standalone:
+    name: Build — Standalone
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # ── Variant A: Standalone ─────────────────────────────────────────────
-          # Nuitka يدمج PyQt6 بالكامل داخل hardplayer.dist.
-          # الناتج مكتفٍ بذاته — لا يحتاج Qt أو Python مثبتَين على الجهاز المستهدف.
-          # ─────────────────────────────────────────────────────────────────────
-          - variant: standalone
-            pkg_suffix: standalone
-            arch: x86_64
-
-          # ── Variant B: System-Qt (Pure Python) ───────────────────────────────
-          # لا Nuitka، لا تجميع، لا ربط ديناميكي بـ libpython.
-          # يُحزَّم hardplayer.py مباشرةً، والمُشغِّل يستدعي python3 الخاص بالنظام.
-          # هذا هو الحل الجذري لمشكلة libpython3.10 على Arch/Fedora.
-          # ─────────────────────────────────────────────────────────────────────
-          - variant: system-qt
-            pkg_suffix: system-qt
-            arch: x86_64
 
     steps:
       # ── 1. Checkout ────────────────────────────────────────────────────────────
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # ── 2. Python (Standalone فقط) ────────────────────────────────────────────
-      # system-qt لا يحتاج بيئة Python في وقت البناء على الإطلاق —
-      # لا توجد خطوة تجميع، وpython3 المستهدَف هو ما على جهاز المستخدم.
+      # ── 2. Python ─────────────────────────────────────────────────────────────
       - name: Set up Python
-        if: matrix.variant == 'standalone'
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      # ── 3. أدوات تغليف الحزم (مشترك) ─────────────────────────────────────────
-      # ruby/fpm مطلوبان في كلا الـ variant لتوليد DEB/RPM/Pacman.
+      # ── 3. OS packaging & compiler tools ──────────────────────────────────────
       - name: Install OS Packaging & Compiler Tools
         run: |
           sudo apt-get update
@@ -83,37 +54,24 @@ jobs:
             libdbus-1-dev libgirepository1.0-dev libcairo2-dev
           sudo gem install --no-document fpm
 
-      # ── 4a. تبعيات Python (Standalone) ───────────────────────────────────────
-      - name: Install Python Build Dependencies (Standalone)
-        if: matrix.variant == 'standalone'
+      # ── 4. Python build dependencies ──────────────────────────────────────────
+      - name: Install Python Build Dependencies
         run: |
           python -m pip install --upgrade pip
-          # yt-dlp مستبعد من pip عمداً — مُعلَن كتبعية نظام عبر fpm (-d yt-dlp).
-          # تثبيته هنا يجعل Nuitka يتتبع 300+ submodule → بناء 80+ دقيقة (كارثة v19).
+          # yt-dlp excluded from pip intentionally — declared as system dep via fpm.
+          # Installing it here causes Nuitka to trace 300+ submodules → 80+ min build.
           pip install PyQt6 python-mpv nuitka zstandard ordered-set \
                       dbus-python "PyGObject<3.51.0"
 
-      # ── 4b. System-Qt: لا تثبيت مطلوب ───────────────────────────────────────
-      # لا Nuitka، لا PyQt6، لا pip — hardplayer.py يُحزَّم كما هو.
-      # python3 و PyQt6 على جهاز المستخدم هما ما سيُشغِّلان البرنامج.
-      # (هذه الخطوة موثَّقة صراحةً لتوضيح القرار المعماري، لا لتنفيذ شيء)
-      - name: Skip Build Dependencies (System-Qt — Pure Python)
-        if: matrix.variant == 'system-qt'
-        run: |
-          echo "ℹ️  system-qt variant uses pure Python packaging."
-          echo "    No Nuitka compilation → no libpython ABI to worry about."
-          echo "    The host's python3 executes hardplayer.py directly at runtime."
-
-      # ── 5. كاش Nuitka (Standalone فقط) ───────────────────────────────────────
+      # ── 5. Nuitka compilation cache ───────────────────────────────────────────
       #
-      # Key مشتق من محتوى ملفات .py فقط — لا من رقم الإصدار.
-      # v22 → v23 يُعيد استخدام الكاش بلا تكلفة إضافية.
+      # Key derived from .py file content only — not from the version tag.
+      # v22 → v23 reuses the cache at zero extra cost.
       #
-      # المسارات المُخزَّنة:
-      #   __pycache__      — bytecode للتحليل السريع
-      #   ~/.cache/Nuitka  — كاش ترجمة C (ccache/Scons)
+      # Cached paths:
+      #   __pycache__      — bytecode for fast analysis
+      #   ~/.cache/Nuitka  — C compilation cache (ccache/Scons)
       - name: Restore Nuitka Compilation Cache
-        if: matrix.variant == 'standalone'
         uses: actions/cache@v4
         with:
           path: |
@@ -123,9 +81,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuitka-standalone-
 
-      # ── 6. تجميع Nuitka (Standalone فقط) ─────────────────────────────────────
+      # ── 6. Nuitka compilation ─────────────────────────────────────────────────
       - name: Compile with Nuitka (Standalone)
-        if: matrix.variant == 'standalone'
         run: |
           OPTS="--remove-output"
           OPTS="$OPTS --follow-imports"
@@ -133,55 +90,36 @@ jobs:
           OPTS="$OPTS --standalone"
           OPTS="$OPTS --enable-plugin=pyqt6"
 
-          # ── حارس yt_dlp الأساسي ───────────────────────────────────────────────
-          # يمنع تتبع 300+ submodule داخل yt_dlp → بناء سريع كما في v14.
+          # ── yt_dlp guard ──────────────────────────────────────────────────────
+          # Prevents tracing 300+ submodules inside yt_dlp → fast build like v14.
           OPTS="$OPTS --nofollow-import-to=yt_dlp"
 
-          # ── حارس http (مكمِّل لحارس yt_dlp) ─────────────────────────────────
-          # Nuitka يلتقط أحياناً استيرادات yt_dlp الجزئية (http.cookies ...)
-          # قبل الوصول لحد --nofollow-import-to=yt_dlp.
-          # النتيجة: "No module named 'http.cookies'" عند التشغيل.
-          # http مكتبة standard — متاحة دائماً في بيئة التشغيل.
+          # ── http guard (complements yt_dlp guard) ─────────────────────────────
+          # Nuitka occasionally captures partial yt_dlp imports (http.cookies …)
+          # before reaching the --nofollow-import-to=yt_dlp boundary.
+          # Result without this: "No module named 'http.cookies'" at runtime.
+          # http is a stdlib module — always present in the runtime environment.
           OPTS="$OPTS --nofollow-import-to=http"
 
           python -m nuitka $OPTS hardplayer.py
 
-      # ── 7. تجهيز شجرة الحزمة ─────────────────────────────────────────────────
+      # ── 7. Stage package tree ─────────────────────────────────────────────────
       - name: Stage Package Tree
         run: |
           mkdir -p package_root/opt/hardplayer package_root/usr/bin
 
-          if [ "${{ matrix.variant }}" = "standalone" ]; then
-            # ── Standalone: نشر محتويات hardplayer.dist ───────────────────────
-            # إزالة OpenSSL المدمجة لتجنب تعارضها مع مكتبات النظام
-            rm -f hardplayer.dist/libssl.so* hardplayer.dist/libcrypto.so*
-            cp -r hardplayer.dist/* package_root/opt/hardplayer/
-            # Nuitka يولِّد hardplayer.bin داخل .dist — نعيد تسميته للمُشغِّل
-            mv package_root/opt/hardplayer/hardplayer.bin \
-               package_root/opt/hardplayer/hardplayer-bin
+          # Deploy contents of hardplayer.dist
+          # Remove bundled OpenSSL to avoid conflicts with system libraries
+          rm -f hardplayer.dist/libssl.so* hardplayer.dist/libcrypto.so*
+          cp -r hardplayer.dist/* package_root/opt/hardplayer/
+          # Nuitka produces hardplayer.bin inside .dist — rename for the launcher
+          mv package_root/opt/hardplayer/hardplayer.bin \
+             package_root/opt/hardplayer/hardplayer-bin
 
-          else
-            # ── System-Qt (Pure Python): نسخ ملفات .py مباشرةً ──────────────
-            #
-            # لماذا لا hardplayer.bin؟
-            # hardplayer.bin من Nuitka (بدون --standalone) مرتبط ديناميكياً بـ
-            # libpython3.10.so.1.0 (إصدار build host). هذا يُودي بالبرنامج على
-            # Arch (libpython3.12) وأي توزيعة بإصدار بايثون مختلف.
-            #
-            # الحل: نسخ ملفات .py — python3 على جهاز المستخدم يُشغِّلها مباشرةً
-            # دون أي ربط بـ libpython من جهاز البناء.
-            #
-            # ملاحظة: نحن ننسخ كل ملفات .py في جذر المستودع بالإضافة لمجلد convert.
-            find . -maxdepth 1 -name "*.py" -exec cp {} package_root/opt/hardplayer/ \;
-            if [ -d "convert" ]; then
-              cp -r convert package_root/opt/hardplayer/
-            fi
-          fi
-
-          # أيقونة داخل التطبيق (مشترك)
+          # In-app icon (shared)
           cp icon_in_app.png package_root/opt/hardplayer/
 
-          # أيقونة النظام وملف .desktop (مشترك)
+          # System icon + .desktop entry (shared)
           mkdir -p package_root/usr/share/pixmaps \
                    package_root/usr/share/applications
           cp icon.png package_root/usr/share/pixmaps/hardplayer.png
@@ -199,11 +137,10 @@ jobs:
           StartupNotify=true
           EOF
 
-      # ── 8a. Launcher: Standalone ──────────────────────────────────────────────
-      # QT_PLUGIN_PATH يشير إلى plugins المدمجة داخل hardplayer.dist.
-      # --enable-plugin=pyqt6 هو من نسخ هذه الـ plugins → المسار موجود هنا فقط.
+      # ── 8. Launcher script ────────────────────────────────────────────────────
+      # QT_PLUGIN_PATH points to plugins bundled inside hardplayer.dist.
+      # --enable-plugin=pyqt6 copied those plugins → the path exists here only.
       - name: Write Launcher Script (Standalone)
-        if: matrix.variant == 'standalone'
         run: |
           cat <<'EOF' > package_root/usr/bin/hardplayer
           #!/bin/bash
@@ -213,157 +150,54 @@ jobs:
           EOF
           chmod +x package_root/usr/bin/hardplayer
 
-      # ── 8b. Launcher: System-Qt (Pure Python) ────────────────────────────────
+      # ── 9. Build DEB / RPM / Pacman packages ─────────────────────────────────
       #
-      # الفرق الجوهري عن الـ standalone launcher:
-      #   لا يوجد hardplayer-bin — المُشغِّل يستدعي python3 مباشرةً.
-      #   لا QT_PLUGIN_PATH — Qt تُحدِّد plugins من مسارات النظام تلقائياً.
-      #   لا LD_LIBRARY_PATH لـ PyQt6 — مكتباتها في /usr/lib (مسار النظام الافتراضي).
-      #
-      # لماذا هذا يحل مشكلة libpython؟
-      #   لأنه لا يوجد binary مرتبط بـ libpython من الأساس.
-      #   `python3` الذي سيُشغِّل hardplayer.py هو python3 الخاص بالمستخدم
-      #   (3.12 على Arch، 3.11 على Fedora، إلخ) وهو بطبيعة الحال متوافق
-      #   مع PyQt6 المثبتة على نفس النظام.
-      - name: Write Launcher Script (System-Qt)
-        if: matrix.variant == 'system-qt'
-        run: |
-          cat <<'EOF' > package_root/usr/bin/hardplayer
-          #!/bin/bash
-          # ── Pure Python Launcher ──────────────────────────────────────────────
-          # لا binary مرتبط بـ libpython → لا ABI mismatch بين التوزيعات.
-          # python3 المثبت على النظام يُشغِّل hardplayer.py مباشرةً.
-
-          # ── PYTHONPATH: اكتشاف ديناميكي عبر python3 نفسه ────────────────────
-          # نسأل python3 المثبت على جهاز المستخدم عن مساراته الحقيقية.
-          # يعمل على:
-          #   Arch   → /usr/lib/python3.12/site-packages
-          #   Debian → /usr/lib/python3/dist-packages
-          #   Fedora → /usr/lib/python3.12/site-packages
-          # بغض النظر عن رقم الإصدار الذي يتغير مع كل تحديث.
-          if command -v python3 &>/dev/null; then
-            PYQT6_PATHS="$(python3 -c \
-              'import site, os
-          paths = [p for p in site.getsitepackages() if os.path.exists(p)]
-          print(":".join(paths))' 2>/dev/null)"
-          fi
-
-          if [ -n "${PYQT6_PATHS}" ]; then
-            export PYTHONPATH="${PYQT6_PATHS}:${PYTHONPATH}"
-          else
-            # Fallback آمن لو python3 غير متاح في $PATH لسبب استثنائي
-            for p in \
-              /usr/lib/python3/dist-packages \
-              /usr/lib/python3*/site-packages \
-              /usr/local/lib/python3*/dist-packages; do
-              [ -d "$p" ] && export PYTHONPATH="${p}:${PYTHONPATH}"
-            done
-          fi
-
-          # Qt تُحدِّد plugins من مسارات النظام تلقائياً (/usr/lib/qt6/plugins إلخ)
-          # لا نتدخل في QT_PLUGIN_PATH لتجنب تعارض إصدارات Qt
-
-          exec python3 /opt/hardplayer/hardplayer.py "$@"
-          EOF
-          chmod +x package_root/usr/bin/hardplayer
-
-      # ── 9. توليد حزم DEB / RPM / Pacman ──────────────────────────────────────
-      #
-      # ثلاثة أوامر fpm منفصلة لكل نوع حزمة — أسماء التبعيات مختلفة:
-      #
-      #   DEB (Debian/Ubuntu) → python3-pyqt6
-      #   RPM (Fedora/SUSE)   → python3-pyqt6
-      #   Pacman (Arch)       → python-pyqt6   ← بدون "3" — هذا هو الاسم الصحيح
-      #
-      # الفصل ضروري لأن fpm لا يدعم أسماء تبعيات مختلفة لأنواع حزم مختلفة
-      # في أمر واحد.
+      # Standalone: no Qt dependency — Qt is fully bundled inside the package.
       - name: Build Packages (DEB, RPM, Pacman)
         run: |
-          VER="22.4.0"
-          PKG_NAME="hardplayer-${{ matrix.pkg_suffix }}"
+          VER="23.0.0"
+          PKG_NAME="hardplayer-standalone"
+          DESC="HardPlayer v23.0.0 Standalone: Self-contained with fully bundled Qt6. No Qt installation required."
           BASE_DEPS="-d mpv -d ffmpeg -d yt-dlp -d aria2"
 
-          if [ "${{ matrix.variant }}" = "standalone" ]; then
-            DESC="HardPlayer v22.4.0 Standalone: Self-contained with fully bundled Qt6. No Qt installation required."
+          fpm -s dir -t deb    -n "$PKG_NAME" -v "$VER" -a amd64  \
+              --description "$DESC" $BASE_DEPS                      \
+              -C package_root .
 
-            # Standalone: لا تبعية Qt — Qt مدمجة بالكامل داخل الحزمة
-            fpm -s dir -t deb    -n "$PKG_NAME" -v "$VER" -a amd64  \
-                --description "$DESC" $BASE_DEPS                      \
-                -C package_root .
+          fpm -s dir -t rpm    -n "$PKG_NAME" -v "$VER" -a x86_64  \
+              --description "$DESC" $BASE_DEPS                      \
+              -C package_root .
 
-            fpm -s dir -t rpm    -n "$PKG_NAME" -v "$VER" -a x86_64  \
-                --description "$DESC" $BASE_DEPS                      \
-                -C package_root .
+          fpm -s dir -t pacman -n "$PKG_NAME" -v "$VER" -a x86_64  \
+              --description "$DESC" $BASE_DEPS                      \
+              -C package_root .
 
-            fpm -s dir -t pacman -n "$PKG_NAME" -v "$VER" -a x86_64  \
-                --description "$DESC" $BASE_DEPS                      \
-                -C package_root .
-
-          else
-            # ── System-Qt: نضيف تبعية python3 + PyQt6 من حزم النظام ──────────
-            # python3 مطلوب في runtime لتشغيل hardplayer.py
-            DESC="HardPlayer v22.4.0 System-Qt: Lightweight pure Python build. Requires system python3 and PyQt6."
-
-            # DEB (Debian/Ubuntu)
-            fpm -s dir -t deb    -n "$PKG_NAME" -v "$VER" -a amd64  \
-                --description "$DESC" $BASE_DEPS                      \
-                -d python3 -d python3-pyqt6 -d python3-mpv -d python3-dbus \
-                -C package_root .
-
-            # RPM (Fedora/SUSE)
-            fpm -s dir -t rpm    -n "$PKG_NAME" -v "$VER" -a x86_64  \
-                --description "$DESC" $BASE_DEPS                      \
-                -d python3 -d python3-pyqt6 -d python3-mpv -d python3-dbus \
-                -C package_root .
-
-            # Pacman (Arch) — python-pyqt6 بدون "3"
-            fpm -s dir -t pacman -n "$PKG_NAME" -v "$VER" -a x86_64  \
-                --description "$DESC" $BASE_DEPS                      \
-                -d python -d python-pyqt6 -d python-mpv -d dbus-python \
-                -C package_root .
-          fi
-
-      # ── 10a. إنشاء الـ Release (Standalone فقط) ──────────────────────────────
+      # ── 10. Create GitHub Release & upload standalone assets ──────────────────
       #
-      # Standalone هو المُنشئ الرسمي لـ metadata الـ release (name + body).
-      # System-Qt يُلحق ملفاته فقط لتجنب race condition على metadata.
+      # build-standalone is the official release metadata creator (name + body).
+      # build-system-qt appends its artifacts only, to avoid a race condition.
       - name: Create Release & Upload Standalone Assets
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/v22.4') && matrix.variant == 'standalone'
+        if: startsWith(github.ref, 'refs/tags/v23.0')
         with:
-          name: "HardPlayer v22.4.0 — Accelerated Native Engine 🚀"
+          name: "HardPlayer v23.0.0 — True Compiled Engine 🚀"
           body: |
             ## 📥 Download Links
 
-            ### 🔵 Variant A — Standalone *(recommended)*
-            > Fully bundled with Qt6. Works out of the box on any Linux distribution with `mpv`, `ffmpeg`, `yt-dlp`, and `aria2`. No Python or Qt required on the host.
-
-            | | Ubuntu / Debian | Fedora / SUSE | Arch Linux |
-            |---|---|---|---|
-            | **x86-64** | [📦 DEB](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-standalone_22.4.0_amd64.deb) | [📦 RPM](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-standalone-22.4.0-1.x86_64.rpm) | [📦 Pacman](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-standalone-22.4.0-1-x86_64.pkg.tar.zst) |
+            | Variant | Ubuntu / Debian (DEB) | Fedora / Suse (RPM) | Arch Linux (Pacman) |
+            | :--- | :--- | :--- | :--- |
+            | **Standalone (Bundled Qt)** | [Download DEB](https://github.com/ahmed-x86/hardplayer/releases/download/v23.0.0/hardplayer-standalone_23.0.0_amd64.deb) | [Download RPM](https://github.com/ahmed-x86/hardplayer/releases/download/v23.0.0/hardplayer-standalone-23.0.0-1.x86_64.rpm) | [Download Pacman](https://github.com/ahmed-x86/hardplayer/releases/download/v23.0.0/hardplayer-standalone-23.0.0-1-x86_64.pkg.tar.zst) |
+            | **System-Qt (Lightweight)** | [Download DEB](https://github.com/ahmed-x86/hardplayer/releases/download/v23.0.0/hardplayer-system-qt_23.0.0_amd64.deb) | [Download RPM](https://github.com/ahmed-x86/hardplayer/releases/download/v23.0.0/hardplayer-system-qt-23.0.0-1.x86_64.rpm) | [Download Pacman](https://github.com/ahmed-x86/hardplayer/releases/download/v23.0.0/hardplayer-system-qt-23.0.0-1-x86_64.pkg.tar.zst) |
 
             ---
 
-            ### 🟢 Variant B — System-Qt *(lightweight)*
-            > Pure Python distribution — packages `hardplayer.py` directly.
-            > Runs via the host's `python3` interpreter, so there is **zero `libpython` ABI dependency** from the build machine.
-            > Requires `python3` + `python3-pyqt6` (Debian/Fedora) or `python-pyqt6` (Arch) — installed automatically as a package dependency.
+            ### 🔧 What's Changed in v23.0.0?
 
-            | | Ubuntu / Debian | Fedora / SUSE | Arch Linux |
-            |---|---|---|---|
-            | **x86-64** | [📦 DEB](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-system-qt_22.4.0_amd64.deb) | [📦 RPM](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-system-qt-22.4.0-1.x86_64.rpm) | [📦 Pacman](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hardplayer-system-qt-22.4.0-1-x86_64.pkg.tar.zst) |
-
-            ---
-
-            ### 🔧 What's Changed in v22.4.0?
-
-            * **🛠️ Standalone Build Fix:** Restored missing C-headers (`libdbus-1-dev`, `libcairo2-dev`) to successfully compile `dbus-python`.
-            * **📦 System-Qt Runtime Dependencies:** Added `python-mpv` and `dbus-python` to FPM dependencies.
-            * **📁 System-Qt Packaging Fix:** Correctly included the `convert/` directory in the Pure Python build, restoring all conversion APIs and features that were missing in the previous release.
-            * **🔥 libpython ABI Fix (System-Qt):** Retains the pure Python package architecture — executing directly via the host's `python3` to eliminate `libpython` mismatches on Arch, Fedora, and any distro with a different Python version than the CI build host.
-            * **🗺️ Universal PYTHONPATH Discovery:** The launcher uses `site.getsitepackages()` to locate PyQt6 dynamically at runtime, working correctly on any distribution regardless of Python version.
-            * **📦 Arch Dependency Fixed:** Pacman package correctly declares `python-pyqt6` and `python` (not `python3-pyqt6`) for seamless Arch Linux installation.
-            * **🛡️ HTTP Cookies Guard (Standalone):** `--nofollow-import-to=http` prevents missing module errors from partial `yt-dlp` import traces in the Nuitka build.
+            * **Robust Download Resumption**: Integrated a state-management system (`.json` tracking) for interrupted or manually cancelled downloads. HardPlayer will now automatically detect leftover `.part` files and resume the download exactly from where it left off, saving bandwidth and time.
+            * **Smart YouTube URL Parsing**: Implemented a robust URL cleaner that automatically sanitizes user inputs. It strips unwanted parameters (like `&t=` timestamps or `&list=` playlists) to prevent erratic `yt-dlp` behavior and ensure accurate video metadata fetching.
+            * **Extended Filename & UI WordWrap**: Removed arbitrary slicing on long video titles. The UI now dynamically wraps text to display the full name flawlessly. Additionally, downloaded files now append the unique YouTube `[ID]` to their names to completely prevent overwriting or naming conflicts.
+            * **Granular Progress & Merging Status**: The progress UI is now fully stream-aware. It explicitly displays separate sizes for Video and Audio streams, calculates the exact downloaded megabytes, and transitions to a clear "Merging Video & Audio... Please wait ⏳" status when `ffmpeg` is finalizing the file.
+            * **True Compiled System-Qt Engine**: System-Qt variant is now compiled securely inside separate OS containers (Arch, Fedora, Ubuntu) directly into a high-performance C++ binary linked specifically to that distro's Python libraries, maximizing performance and eliminating Python script exposures.
           files: |
             *.deb
             *.rpm
@@ -371,12 +205,203 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # ── 10b. إلحاق ملفات System-Qt بالـ Release الموجود ─────────────────────
-      # name + body محذوفان عمداً — Standalone هو المُنشئ الرسمي.
-      # هذا الـ step يُلحق الملفات فقط دون لمس metadata الـ release.
-      - name: Upload System-Qt Assets to Existing Release
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# JOB 2 — SYSTEM-QT (build-system-qt)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Each matrix entry runs inside its own OS container so that Nuitka links
+# the resulting binary against that distro's native libpython — eliminating
+# all ABI mismatches across distributions.
+#
+#  ┌──────────────────┬──────────────────────┬──────────────┬────────────────┐
+#  │ Container        │ Package manager       │ Output       │ fpm target     │
+#  ├──────────────────┼──────────────────────┼──────────────┼────────────────┤
+#  │ archlinux:base   │ pacman               │ .pkg.tar.zst │ pacman         │
+#  │ fedora:latest    │ dnf                  │ .rpm         │ rpm            │
+#  │ ubuntu:22.04     │ apt-get              │ .deb         │ deb            │
+#  └──────────────────┴──────────────────────┴──────────────┴────────────────┘
+
+  build-system-qt:
+    name: Build — System-Qt (${{ matrix.distro }})
+    runs-on: ubuntu-latest
+    needs: build-standalone
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+
+          # ── Arch Linux ────────────────────────────────────────────────────────
+          - distro: arch
+            container: archlinux:base-devel
+            fpm_target: pacman
+            fpm_arch: x86_64
+            pkg_arch_flag: "-a x86_64"
+            pkg_suffix: "-23.0.0-1-x86_64.pkg.tar.zst"
+            install_cmd: >-
+              pacman -Syu --noconfirm
+              python python-pip python-pyqt6 python-mpv dbus-python
+              gcc patchelf ccache ruby rubygems zstd libarchive
+            gem_fpm: "gem install --no-document fpm"
+            pip_deps: "nuitka zstandard ordered-set"
+            fpm_deps: "-d python -d python-pyqt6 -d python-mpv -d dbus-python"
+            desc: "HardPlayer v23.0.0 System-Qt (Arch): Nuitka-compiled binary linked to Arch's native libpython."
+
+          # ── Fedora ────────────────────────────────────────────────────────────
+          - distro: fedora
+            container: fedora:latest
+            fpm_target: rpm
+            fpm_arch: x86_64
+            pkg_arch_flag: "-a x86_64"
+            pkg_suffix: "-23.0.0-1.x86_64.rpm"
+            install_cmd: >-
+              dnf install -y
+              python3 python3-pip python3-qt6 python3-mpv python3-dbus
+              gcc patchelf ccache ruby rubygems zstd libarchive rpm-build
+            gem_fpm: "gem install --no-document fpm"
+            pip_deps: "nuitka zstandard ordered-set"
+            fpm_deps: "-d python3 -d python3-qt6 -d python3-mpv -d python3-dbus"
+            desc: "HardPlayer v23.0.0 System-Qt (Fedora): Nuitka-compiled binary linked to Fedora's native libpython."
+
+          # ── Ubuntu 22.04 ──────────────────────────────────────────────────────
+          - distro: ubuntu
+            container: ubuntu:22.04
+            fpm_target: deb
+            fpm_arch: amd64
+            pkg_arch_flag: "-a amd64"
+            pkg_suffix: "_23.0.0_amd64.deb"
+            install_cmd: >-
+              apt-get update &&
+              apt-get install -y
+              python3 python3-pip python3-pyqt6 python3-mpv python3-dbus
+              gcc patchelf ccache ruby ruby-dev rubygems build-essential
+              libarchive-tools zstd
+            gem_fpm: "gem install --no-document fpm"
+            pip_deps: "nuitka zstandard ordered-set"
+            fpm_deps: "-d python3 -d python3-pyqt6 -d python3-mpv -d python3-dbus"
+            desc: "HardPlayer v23.0.0 System-Qt (Ubuntu): Nuitka-compiled binary linked to Ubuntu 22.04's native libpython."
+
+    container:
+      image: ${{ matrix.container }}
+
+    steps:
+      # ── 1. Checkout ────────────────────────────────────────────────────────────
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # ── 2. Install system dependencies ────────────────────────────────────────
+      # Each distro uses its native package manager to install python3, PyQt6,
+      # build tools, ruby (for fpm), and packaging utilities.
+      - name: Install System Dependencies
+        run: ${{ matrix.install_cmd }}
+
+      # ── 3. Install fpm via RubyGems ───────────────────────────────────────────
+      - name: Install fpm
+        run: ${{ matrix.gem_fpm }}
+
+      # ── 4. Install Python build dependencies via pip ──────────────────────────
+      # Only Nuitka and its direct helpers — no PyQt6 from pip (comes from the
+      # distro's package manager to guarantee ABI compatibility with system Qt).
+      - name: Install Python Build Dependencies (pip)
+        run: pip3 install --break-system-packages ${{ matrix.pip_deps }}
+
+      # ── 5. Nuitka compilation cache ───────────────────────────────────────────
+      - name: Restore Nuitka Compilation Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            __pycache__
+            ~/.cache/Nuitka
+          key: ${{ runner.os }}-nuitka-system-qt-${{ matrix.distro }}-${{ hashFiles('**/*.py') }}
+          restore-keys: |
+            ${{ runner.os }}-nuitka-system-qt-${{ matrix.distro }}-
+
+      # ── 6. Nuitka compilation (WITHOUT --standalone) ──────────────────────────
+      #
+      # No --standalone → Nuitka produces a single binary that dynamically links
+      # against the container's own libpython (e.g. libpython3.12 on Arch).
+      # This is intentional: the binary is ABI-compatible with that distro only,
+      # and the fpm package declares the correct python3/python dependency so the
+      # package manager guarantees the right runtime is installed.
+      - name: Compile with Nuitka (System-Qt — No Standalone)
+        run: |
+          OPTS="--remove-output"
+          OPTS="$OPTS --follow-imports"
+          OPTS="$OPTS --assume-yes-for-downloads"
+          OPTS="$OPTS --nofollow-import-to=yt_dlp"
+          OPTS="$OPTS --nofollow-import-to=http"
+
+          python3 -m nuitka $OPTS hardplayer.py
+
+      # ── 7. Stage package tree ─────────────────────────────────────────────────
+      - name: Stage Package Tree
+        run: |
+          mkdir -p package_root/opt/hardplayer package_root/usr/bin
+
+          # Nuitka (no --standalone) produces hardplayer.bin in the working dir
+          cp hardplayer.bin package_root/opt/hardplayer/hardplayer-bin
+
+          # In-app icon
+          cp icon_in_app.png package_root/opt/hardplayer/
+
+          # System icon + .desktop entry
+          mkdir -p package_root/usr/share/pixmaps \
+                   package_root/usr/share/applications
+          cp icon.png package_root/usr/share/pixmaps/hardplayer.png
+
+          cat <<'EOF' > package_root/usr/share/applications/hardplayer.desktop
+          [Desktop Entry]
+          Name=HardPlayer
+          Comment=Pro Media Player with Advanced YouTube Downloader
+          Exec=hardplayer %U
+          Icon=hardplayer
+          Terminal=false
+          Type=Application
+          Categories=AudioVideo;Video;Player;
+          MimeType=video/mp4;video/x-matroska;video/webm;video/x-msvideo;video/quicktime;video/x-flv;audio/mpeg;audio/x-wav;audio/flac;
+          StartupNotify=true
+          EOF
+
+      # ── 8. Launcher script ────────────────────────────────────────────────────
+      #
+      # No QT_PLUGIN_PATH — Qt resolves plugins from system paths automatically.
+      # No LD_LIBRARY_PATH for PyQt6 — its libraries live in /usr/lib (default).
+      # The binary was linked against this distro's libpython at compile time,
+      # so no runtime tricks are needed.
+      - name: Write Launcher Script (System-Qt)
+        run: |
+          cat <<'EOF' > package_root/usr/bin/hardplayer
+          #!/bin/bash
+          # ── Compiled System-Qt Launcher ───────────────────────────────────────
+          # Binary is natively linked to this distro's libpython.
+          # Qt resolves plugins from system paths — no QT_PLUGIN_PATH override needed.
+          exec /opt/hardplayer/hardplayer-bin "$@"
+          EOF
+          chmod +x package_root/usr/bin/hardplayer
+
+      # ── 9. Build distro-specific package ──────────────────────────────────────
+      - name: Build Package (${{ matrix.fpm_target }})
+        run: |
+          VER="23.0.0"
+          PKG_NAME="hardplayer-system-qt"
+          BASE_DEPS="-d mpv -d ffmpeg -d yt-dlp -d aria2"
+
+          fpm -s dir -t ${{ matrix.fpm_target }} \
+              -n "$PKG_NAME" -v "$VER" \
+              ${{ matrix.pkg_arch_flag }} \
+              --description "${{ matrix.desc }}" \
+              $BASE_DEPS \
+              ${{ matrix.fpm_deps }} \
+              -C package_root .
+
+      # ── 10. Upload System-Qt artifact to the existing release ─────────────────
+      #
+      # name + body are omitted intentionally — build-standalone owns the
+      # release metadata. This step appends files only, avoiding a race condition.
+      - name: Upload System-Qt Asset to Existing Release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/v22.4') && matrix.variant == 'system-qt'
+        if: startsWith(github.ref, 'refs/tags/v23.0')
         with:
           files: |
             *.deb
