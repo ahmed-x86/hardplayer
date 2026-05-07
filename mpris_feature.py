@@ -2,7 +2,7 @@
 
 import urllib.parse
 from thumbnail_gen import get_local_thumbnail
-from get_youtube_thumbnail import get_youtube_thumbnail  # الاستيراد الجديد
+from get_youtube_thumbnail import get_youtube_thumbnail
 
 try:
     import dbus
