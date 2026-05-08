@@ -20,6 +20,7 @@ class HardPlayerMPRIS(dbus.service.Object):
         
         self.main_win = main_win
         self.player = main_win.player
+        self._loop_status = "None" # الحالة الافتراضية للتكرار
 
         self.player.observe_property('pause', self.on_pause_change)
         self.player.observe_property('media-title', self.on_metadata_change)
@@ -40,6 +41,13 @@ class HardPlayerMPRIS(dbus.service.Object):
     def on_metadata_change(self, name, value):
         metadata = self.Get('org.mpris.MediaPlayer2.Player', 'Metadata')
         GLib.idle_add(self.PropertiesChanged, 'org.mpris.MediaPlayer2.Player', {'Metadata': metadata}, [])
+
+    # === دالة لتحديث حالة التكرار عند تغييرها من البرنامج ===
+    def update_loop_status(self, status: str):
+        """يتم استدعاؤها من البرنامج (main.py) لتحديث حالة MPRIS عند النقر على الزر"""
+        if status in ["None", "Track", "Playlist"] and self._loop_status != status:
+            self._loop_status = status
+            GLib.idle_add(self.PropertiesChanged, 'org.mpris.MediaPlayer2.Player', {'LoopStatus': dbus.String(status)}, [])
 
     @dbus.service.method('org.mpris.MediaPlayer2.Player', in_signature='', out_signature='')
     def PlayPause(self): 
@@ -78,6 +86,21 @@ class HardPlayerMPRIS(dbus.service.Object):
         self.player.time_pos = position / 1000000.0
         GLib.idle_add(self.Seeked, position)
 
+    # === إضافة دعم للكتابة (Set) على خصائص DBus (للسماح لـ KDE Connect بالتغيير) ===
+    @dbus.service.method('org.freedesktop.DBus.Properties', in_signature='ssv', out_signature='')
+    def Set(self, interface, prop, value):
+        if interface == 'org.mpris.MediaPlayer2.Player':
+            if prop == 'LoopStatus':
+                new_status = str(value)
+                if new_status in ["None", "Track", "Playlist"]:
+                    self._loop_status = new_status
+                    # بث التغيير لباقي أجهزة DBus
+                    self.PropertiesChanged('org.mpris.MediaPlayer2.Player', {'LoopStatus': dbus.String(new_status)}, [])
+                    
+                    # إبلاغ النافذة الرئيسية لتحديث MPV والواجهة (UI)
+                    if hasattr(self.main_win, 'handle_mpris_loop_change'):
+                        GLib.idle_add(self.main_win.handle_mpris_loop_change, new_status)
+
     @dbus.service.method('org.freedesktop.DBus.Properties', in_signature='ss', out_signature='v')
     def Get(self, interface, prop):
         if interface == 'org.mpris.MediaPlayer2':
@@ -87,6 +110,9 @@ class HardPlayerMPRIS(dbus.service.Object):
         if interface == 'org.mpris.MediaPlayer2.Player':
             if prop == 'PlaybackStatus': 
                 return 'Paused' if self.player.pause else 'Playing'
+            
+            if prop == 'LoopStatus':
+                return dbus.String(self._loop_status)
             
             if prop == 'Position': 
                 pos = getattr(self.player, 'time_pos', 0)
@@ -132,6 +158,7 @@ class HardPlayerMPRIS(dbus.service.Object):
         if interface == 'org.mpris.MediaPlayer2.Player':
             return {
                 'PlaybackStatus': self.Get(interface, 'PlaybackStatus'),
+                'LoopStatus': self.Get(interface, 'LoopStatus'),
                 'Metadata': self.Get(interface, 'Metadata'),
                 'Position': self.Get(interface, 'Position'),
                 'CanGoNext': True,
