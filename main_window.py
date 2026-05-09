@@ -28,7 +28,7 @@ from hw_decoding import DecodingDialog, DEVICE_MAP
 from youtube_feature import YouTubeSimpleQualityDialog, YouTubeQualityDialog, YouTubeSearchDialog
 from ui_components import InfoDialog, StartupDialog
 
-# --- التعديل هنا: استيراد مدير التحويل ---
+# --- استيراد مدير التحويل ---
 from top_menu_convert import ConvertMenuManager
 
 try:
@@ -87,6 +87,9 @@ class HardPlayerWindow(QMainWindow):
     """
     The main application window. Acts as a controller connecting the UI to the MPV engine.
     """
+    # إشارة تخبرنا أن الفيديو قد انتهى بأمان
+    video_ended = pyqtSignal()
+
     def __init__(self, cli_path=None, cli_device=None, cli_search=False, cli_quality=None):
         super().__init__()
         self.setWindowTitle("HardPlayer")
@@ -163,7 +166,7 @@ class HardPlayerWindow(QMainWindow):
         self.current_index = -1
         self._keyboard_seeking = False
         
-        # --- التعديل هنا: استدعاء مدير قائمة التحويل وربطه بالنافذة الرئيسية ---
+        # --- استدعاء مدير قائمة التحويل وربطه بالنافذة الرئيسية ---
         self.convert_manager = ConvertMenuManager(self)
 
     def setup_logo_screen(self):
@@ -215,7 +218,8 @@ class HardPlayerWindow(QMainWindow):
         # ==========================================
         self.player['force-window'] = 'yes'
 
-        self.loop_enabled = False
+        # إعداد التكرار الأولي للبرنامج
+        self.current_loop_status = "None"
         self.player['loop-file'] = 'no'
         
         # --- إضافة: السماح بالبحث التلقائي عن ملفات الترجمة ---
@@ -245,6 +249,9 @@ class HardPlayerWindow(QMainWindow):
 
         # ربط مراقب (Observer) لخاصية sub-text للتأكد من عدم ظهور مربعات فارغة
         self.player.observe_property('sub-text', self.on_sub_text_change)
+        
+        # مراقبة متى ينتهي الفيديو لنتحكم بالقائمة "بضمير"
+        self.player.observe_property('eof-reached', self.on_eof_reached)
 
         # UI Timer
         self.ui_timer = QTimer()
@@ -264,11 +271,15 @@ class HardPlayerWindow(QMainWindow):
         self.controls.stop_clicked.connect(self.stop_playback)
         self.controls.next_clicked.connect(self.play_next)
         self.controls.prev_clicked.connect(self.play_previous)
-        self.controls.repeat_toggled.connect(self.toggle_loop)
         self.controls.seek_requested.connect(self.seek_video)
         
-        # --- إضافة: ربط إشارة الترجمة ---
+        # ربط التكرار الجديد
+        self.controls.repeat_mode_changed.connect(self.handle_ui_repeat_change)
+        # ربط الترجمة
         self.controls.subtitle_toggled.connect(self.toggle_subtitles)
+        
+        # ربط إشارة انتهاء الفيديو
+        self.video_ended.connect(self.handle_video_ended)
 
     # ==========================================
     # --- UI & Event Overrides ---
@@ -321,12 +332,45 @@ class HardPlayerWindow(QMainWindow):
         self.stack.setCurrentWidget(self.logo_widget)
         print("[*] ⏹ Playback stopped, returning to main screen.")
 
-    def toggle_loop(self):
-        self.loop_enabled = not self.loop_enabled
-        self.player['loop-file'] = 'inf' if self.loop_enabled else 'no'
-        self.controls.set_repeat_status(self.loop_enabled)
-        state = "ENABLED" if self.loop_enabled else "DISABLED"
-        print(f"[*] 🔁 Loop Mode: {state}")
+    # ==========================================
+    # --- Loop Logic (Simple Mode) ---
+    # ==========================================
+    def handle_ui_repeat_change(self, status: str):
+        """يتغير الوضع عند النقر على الزر في الواجهة"""
+        self.current_loop_status = status
+        # نخبر MPV ليعيد مقطع واحد فقط، أو لا يفعل شيء في الحالات الأخرى (ونتحكم نحن)
+        self.player['loop-file'] = 'inf' if status == "Track" else 'no'
+        print(f"[*] 🔁 Loop Mode: {status}")
+        
+        if hasattr(self, 'mpris_provider') and self.mpris_provider:
+            self.mpris_provider.update_loop_status(status)
+
+    def handle_mpris_loop_change(self, status: str):
+        """يتغير الوضع من الهاتف"""
+        self.current_loop_status = status
+        self.player['loop-file'] = 'inf' if status == "Track" else 'no'
+        self.controls.set_repeat_status(status)
+
+    def on_eof_reached(self, name, value):
+        """عندما ينتهي تشغيل ملف، MPV يرسل هذه القيمة كـ True"""
+        if value:
+            self.video_ended.emit()
+
+    def handle_video_ended(self):
+        """الفصل في ما يحدث بعد انتهاء الفيديو بناءً على القائمة"""
+        if not self.playlist: return
+        if self.current_loop_status == "Track": return # MPV يعيده لوحده
+
+        is_last_video = (self.current_index >= len(self.playlist) - 1)
+
+        if self.current_loop_status == "Playlist":
+            # play_next ستنتقل للتالي، وإذا كان الأخير ستعود للأول بفضل العلامة %
+            self.play_next()
+        elif self.current_loop_status == "None":
+            if not is_last_video:
+                self.play_next()
+            else:
+                self.stop_playback()
 
     # --- إضافة: دالة التبديل للترجمة بأمان (Safe Toggle) ---
     def toggle_subtitles(self):
@@ -375,6 +419,7 @@ class HardPlayerWindow(QMainWindow):
 
     def play_next(self):
         if self.playlist:
+            # بفضل % len()، هذه الدالة ترجع لأول فيديو إذا كنا في آخر فيديو
             self.current_index = (self.current_index + 1) % len(self.playlist)
             self.player.play(self.playlist[self.current_index])
 
