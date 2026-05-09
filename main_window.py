@@ -34,7 +34,7 @@ from top_menu_convert import ConvertMenuManager
 try:
     from gi.repository import GLib
 except ImportError:
-    pass
+    GLib = None # تم التعديل هنا: نحدد المتغير كـ None بدلاً من تجاهله لتجنب NameError
 
 # --- New: YouTube Playlist Fetcher Thread ---
 class YouTubePlaylistFetcher(QThread):
@@ -444,6 +444,10 @@ class HardPlayerWindow(QMainWindow):
 
     def start_mpris_service(self):
         def loop_runner():
+            
+            if GLib is None:
+                print("[*] ⚠️ GLib module is missing. MPRIS integration will be disabled in this build.")
+                return
             self.mpris_provider = HardPlayerMPRIS(self)
             GLib.MainLoop().run()
         threading.Thread(target=loop_runner, daemon=True).start()
