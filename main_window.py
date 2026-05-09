@@ -25,6 +25,7 @@ from youtube_feature import YouTubeSimpleQualityDialog, YouTubeQualityDialog, Yo
 from ui_components import InfoDialog, StartupDialog
 from top_menu_convert import ConvertMenuManager
 from keyboard_shortcuts import KeyboardShortcutHandler
+from ui_components_continue import ResumeManager, ContinueDialog
 
 try:
     from gi.repository import GLib
@@ -166,6 +167,9 @@ class HardPlayerWindow(QMainWindow):
         
         # --- تفعيل مدير اختصارات لوحة المفاتيح ---
         self.keyboard_handler = KeyboardShortcutHandler(self)
+        
+        # --- مدير الاستئناف (حفظ أوقات الفيديو) ---
+        self.resume_manager = ResumeManager()
 
     def setup_logo_screen(self):
         """Set up the startup screen (Logo)."""
@@ -302,9 +306,45 @@ class HardPlayerWindow(QMainWindow):
             is_seeking=self._keyboard_seeking
         )
 
+    def closeEvent(self, event):
+        """يتم استدعاؤها عند إغلاق نافذة البرنامج بالكامل"""
+        try:
+            current_path = getattr(self.player, 'path', None)
+            current_time = getattr(self.player, 'time_pos', None)
+            duration = getattr(self.player, 'duration', None)
+            
+            if current_path and current_time:
+                self.resume_manager.save_position(current_path, current_time, duration)
+        except Exception as e:
+            print(f"[*] ⚠️ Error saving playback position: {e}")
+            
+        super().closeEvent(event)
+
     # ==========================================
     # --- Playback Logic & CLI ---
     # ==========================================
+    def _start_playback_with_resume(self, source):
+        """
+        وسيط قبل إرسال الأمر للمحرك. 
+        يفحص وقت التوقف ويظهر النافذة إذا لزم الأمر.
+        """
+        saved_time = self.resume_manager.get_position(source)
+        
+        if saved_time > 5.0: # إذا كان هناك وقت محفوظ أكبر من 5 ثواني
+            dialog = ContinueDialog(self, saved_time)
+            dialog.exec() # سيتوقف الكود هنا حتى يختار المستخدم (النافذة محمية من الإغلاق)
+            
+            if dialog.choice == "continue":
+                self.player['start'] = str(saved_time)
+            else:
+                self.player['start'] = "0"
+                self.resume_manager.clear_position(source)
+        else:
+            self.player['start'] = "0"
+            
+        print(f"[*] ▶️  Passing to MPV Engine...\n{'-'*60}\n")
+        self.player.play(source)
+
     def play_from_sidebar(self, path):
         print(f"[*] 🔄 Switching to: {path}")
         self.player.stop()
@@ -326,6 +366,15 @@ class HardPlayerWindow(QMainWindow):
         self.player.pause = not self.player.pause
 
     def stop_playback(self):
+        try:
+            current_path = getattr(self.player, 'path', None)
+            current_time = getattr(self.player, 'time_pos', None)
+            duration = getattr(self.player, 'duration', None)
+            if current_path and current_time:
+                self.resume_manager.save_position(current_path, current_time, duration)
+        except Exception:
+            pass
+
         self.player.stop()
         self.stack.setCurrentWidget(self.logo_widget)
         print("[*] ⏹ Playback stopped, returning to main screen.")
@@ -469,7 +518,7 @@ class HardPlayerWindow(QMainWindow):
         self.player['hwdec'] = selected_hwdec
         self.scan_folder(self.cli_path)
         self.stack.setCurrentWidget(self.video_surface)
-        self.player.play(self.cli_path)
+        self._start_playback_with_resume(self.cli_path)
 
     def ask_for_decoding_and_play(self, source):
         print(f"\n{'-'*60}\n[*] 📂 Video Selected: {source}")
@@ -480,8 +529,7 @@ class HardPlayerWindow(QMainWindow):
             self.player['hwdec'] = saved_hwdec
             self.scan_folder(source)
             self.stack.setCurrentWidget(self.video_surface)
-            print(f"[*] ▶️  Passing to MPV Engine...\n{'-'*60}\n")
-            self.player.play(source)
+            self._start_playback_with_resume(source)
             return
 
         decoding_dialog = DecodingDialog(self)
@@ -493,8 +541,7 @@ class HardPlayerWindow(QMainWindow):
             self.scan_folder(source)
             self.stack.setCurrentWidget(self.video_surface)
             
-            print(f"[*] ▶️  Passing to MPV Engine...\n{'-'*60}\n")
-            self.player.play(source)
+            self._start_playback_with_resume(source)
 
             def check_hwdec_status():
                 current_hwdec = getattr(self.player, 'hwdec_current', 'no')
@@ -612,8 +659,7 @@ class HardPlayerWindow(QMainWindow):
         
         self.stack.setCurrentWidget(self.video_surface)
         
-        print(f"[*] ▶️  Passing to MPV Engine...\n{'-'*60}\n")
-        self.player.play(yt_url)
+        self._start_playback_with_resume(yt_url)
 
     def _on_yt_playlist_fetched(self, urls, original_url):
         if not urls: return
