@@ -1,4 +1,4 @@
-# 🎬 HardPlayer (23.0.0) — Advanced codec converter 🚀
+# 🎬 HardPlayer (24.0.0)
 
 HardPlayer is a lightweight, high-performance modular media player built with **Python**, **PyQt6**, and the **MPV Engine**. It combines native system integration with a sleek **Catppuccin Mocha** aesthetic and a pro-grade YouTube acquisition engine.
 
@@ -8,20 +8,27 @@ Developed by **Ahmed (ahmed-x86)**, this player follows the "KISS" philosophy, s
 
 ![License](https://img.shields.io/badge/License-GPLv3-blue.svg)
 ![Platform](https://img.shields.io/badge/Platform-Linux%20-lightgrey)
-![Version](https://img.shields.io/badge/Version-23.0.0-mauve)
+![Version](https://img.shields.io/badge/Version-24.0.0-mauve)
 ![Theme](https://img.shields.io/badge/Theme-Catppuccin%20Mocha-blue)
 
 
 ---
 
-## 📥 Download Links (Release Assets)
+## 📥 Download Links
 
 | Variant | Ubuntu / Debian (DEB) | Fedora / Suse (RPM) | Arch Linux (Pacman) |
 | :--- | :--- | :--- | :--- |
-| **Standalone (Bundled Qt)** | [Download DEB](https://github.com/ahmed-x86/hardplayer/releases/download/v23.0.0/hardplayer-standalone_23.0.0_amd64.deb) | [Download RPM](https://github.com/ahmed-x86/hardplayer/releases/download/v23.0.0/hardplayer-standalone-23.0.0-1.x86_64.rpm) | [Download Pacman](https://github.com/ahmed-x86/hardplayer/releases/download/v23.0.0/hardplayer-standalone-23.0.0-1-x86_64.pkg.tar.zst) |
-| **System-Qt (Lightweight)** | [Download DEB](https://github.com/ahmed-x86/hardplayer/releases/download/v23.0.0/hardplayer-system-qt_23.0.0_amd64.deb) | [Download RPM](https://github.com/ahmed-x86/hardplayer/releases/download/v23.0.0/hardplayer-system-qt-23.0.0-1.x86_64.rpm) | [Download Pacman](https://github.com/ahmed-x86/hardplayer/releases/download/v23.0.0/hardplayer-system-qt-23.0.0-1-x86_64.pkg.tar.zst) |
+| **Standalone (Bundled Qt)** | [Download DEB](https://github.com/ahmed-x86/hardplayer/releases/download/v24.0.0/hardplayer-standalone_24.0.0_amd64.deb) | [Download RPM](https://github.com/ahmed-x86/hardplayer/releases/download/v24.0.0/hardplayer-standalone-24.0.0-1.x86_64.rpm) | [Download Pacman](https://github.com/ahmed-x86/hardplayer/releases/download/v24.0.0/hardplayer-standalone-24.0.0-1-x86_64.pkg.tar.zst) |
+| **System-Qt (Lightweight)** | [Download DEB](https://github.com/ahmed-x86/hardplayer/releases/download/v24.0.0/hardplayer-system-qt_24.0.0_amd64.deb) | [Download RPM](https://github.com/ahmed-x86/hardplayer/releases/download/v24.0.0/hardplayer-system-qt-24.0.0-1.x86_64.rpm) | [Download Pacman](https://github.com/ahmed-x86/hardplayer/releases/download/v24.0.0/hardplayer-system-qt-24.0.0-1-x86_64.pkg.tar.zst) |
 
 ---
+
+### 🔧 What's Changed in v24.0.0?
+
+* **Next-Gen Release**: Upgraded to version 24.
+* **Fixed Ubuntu Builds**: System-Qt for Debian/Ubuntu now utilizes the 24.04 base to ensure `python3-pyqt6` dependency resolution.
+* **Embedded Assets**: Nuitka now correctly embeds UI icons (`icon_in_app.png` & `icon.png`) directly into the compiled binaries for a flawless native look.
+
 
 ## ✨ What's New in v23.0.0?
 
