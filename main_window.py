@@ -13,23 +13,18 @@ from PyQt6.QtWidgets import (QMainWindow, QStackedWidget, QWidget, QVBoxLayout,
                              QHBoxLayout, QLabel, QFileDialog, QDialog)
 from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal
 from PyQt6.QtGui import QFont, QPixmap
-
-# --- Import separated modular components ---
 from top_menu import TopMenuBar
 from bottom_controls import PlayerControlBar
 from playlist_panel import PlaylistPanel
 from video_surface import VideoSurface
 from styles import AppStyles
-
-# Import configurations and features
 from config import BASE
 from mpris_feature import HardPlayerMPRIS
 from hw_decoding import DecodingDialog, DEVICE_MAP
 from youtube_feature import YouTubeSimpleQualityDialog, YouTubeQualityDialog, YouTubeSearchDialog
 from ui_components import InfoDialog, StartupDialog
-
-# --- استيراد مدير التحويل ---
 from top_menu_convert import ConvertMenuManager
+from keyboard_shortcuts import KeyboardShortcutHandler
 
 try:
     from gi.repository import GLib
@@ -168,6 +163,9 @@ class HardPlayerWindow(QMainWindow):
         
         # --- استدعاء مدير قائمة التحويل وربطه بالنافذة الرئيسية ---
         self.convert_manager = ConvertMenuManager(self)
+        
+        # --- تفعيل مدير اختصارات لوحة المفاتيح ---
+        self.keyboard_handler = KeyboardShortcutHandler(self)
 
     def setup_logo_screen(self):
         """Set up the startup screen (Logo)."""
@@ -639,35 +637,6 @@ class HardPlayerWindow(QMainWindow):
 
     def show_info_dialog(self):
         InfoDialog(self).exec()
-
-    # ==========================================
-    # --- Keyboard Controls ---
-    # ==========================================
-    def keyPressEvent(self, event):
-        if event.key() == Qt.Key.Key_P and getattr(self.player, 'core_idle', True): 
-            self.show_startup_dialog()
-        elif event.key() == Qt.Key.Key_I:
-            self.show_info_dialog()
-        elif event.key() == Qt.Key.Key_Left:
-            self._keyboard_seeking = True
-            self.player.seek(-5) 
-            QTimer.singleShot(800, self._reset_seek_flag)
-        elif event.key() == Qt.Key.Key_Right:
-            self._keyboard_seeking = True
-            self.player.seek(5)
-            QTimer.singleShot(800, self._reset_seek_flag)
-        elif event.key() in (Qt.Key.Key_MediaNext, Qt.Key.Key_F9):
-            self.play_next()
-        elif event.key() in (Qt.Key.Key_MediaPrevious, Qt.Key.Key_F7):
-            self.play_previous()
-        elif event.key() in (Qt.Key.Key_MediaPlay, Qt.Key.Key_MediaTogglePlayPause, Qt.Key.Key_F8):
-            self.toggle_playback()
-        elif event.key() == Qt.Key.Key_MediaStop:
-            self.stop_playback()
-        # --- إضافة اختصار كيبورد (حرف C) لتشغيل/إيقاف الترجمة سريعاً ---
-        elif event.key() == Qt.Key.Key_C:
-            self.toggle_subtitles()
-        super().keyPressEvent(event)
 
     def _reset_seek_flag(self):
         self._keyboard_seeking = False
