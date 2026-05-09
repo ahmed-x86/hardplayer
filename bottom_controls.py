@@ -23,6 +23,18 @@ class ClickableSlider(QSlider):
         super().mousePressEvent(event)
 
 
+class ClickableLabel(QLabel):
+    """
+    Custom QLabel that emits a signal when clicked.
+    """
+    clicked = pyqtSignal()
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(event)
+
+
 class PlayerControlBar(QFrame):
     """
     Bottom control bar containing media playback controls, progress slider, 
@@ -33,18 +45,22 @@ class PlayerControlBar(QFrame):
     stop_clicked = pyqtSignal()
     next_clicked = pyqtSignal()
     prev_clicked = pyqtSignal()
-    repeat_toggled = pyqtSignal()
     seek_requested = pyqtSignal(int)
-    subtitle_toggled = pyqtSignal() # إشارة زر الترجمة الجديد
+    subtitle_toggled = pyqtSignal() # إشارة زر الترجمة 
+    
+    # إشارة التكرار المحدثة لدعم MPRIS بثلاث حالات: None, Playlist, Track
+    repeat_mode_changed = pyqtSignal(str) 
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.current_loop_status = "None" # الحالة الافتراضية للتكرار
+        self.show_remaining_time = False # إضافة: حالة عرض الوقت (منقضي أم متبقي)
         self.init_ui()
 
     def init_ui(self):
         self.setObjectName("MainControlBar")
         
-        # Original Catppuccin CSS logic restored
+        # Original Catppuccin CSS logic restored with slight padding tweaks for new height
         self.setStyleSheet("""
             QFrame#MainControlBar {
                 background-color: #11111b; 
@@ -54,30 +70,30 @@ class PlayerControlBar(QFrame):
                 background-color: #313244;
                 color: #cdd6f4;
                 border-radius: 6px;
-                padding: 5px;
-                font-size: 16px;
+                padding: 4px;
+                font-size: 15px;
             }
             QPushButton:hover {
                 background-color: #45475a;
             }
             QSlider::groove:horizontal {
                 border: 1px solid #313244;
-                height: 8px;
+                height: 6px;
                 background: #313244;
                 margin: 2px 0;
-                border-radius: 4px;
+                border-radius: 3px;
             }
             QSlider::sub-page:horizontal {
                 background: #e9d4a4;
-                border-radius: 4px;
+                border-radius: 3px;
             }
             QSlider::handle:horizontal {
                 background: #89b4fa;
                 border: 1px solid #89b4fa;
-                width: 16px;
-                height: 16px;
-                margin: -5px 0;
-                border-radius: 8px;
+                width: 14px;
+                height: 14px;
+                margin: -4px 0;
+                border-radius: 7px;
             }
             QLabel {
                 color: #cdd6f4; 
@@ -86,18 +102,21 @@ class PlayerControlBar(QFrame):
                 background: transparent;
             }
         """)
-        self.setFixedHeight(70)
+        
+        # تقليل الارتفاع إلى 50 كما طلبت
+        self.setFixedHeight(50)
+        
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(20, 0, 20, 0)
-        layout.setSpacing(15)
+        layout.setContentsMargins(15, 0, 15, 0)
+        layout.setSpacing(12)
 
         self.play_btn = QPushButton("▶")
         self.repeat_btn = QPushButton("🔁 ✖") 
-        self.subtitles_btn = QPushButton("💬 CC") # زر الترجمة الجديد
+        self.subtitles_btn = QPushButton("💬 CC") 
         
-        self.play_btn.setFixedWidth(55)
-        self.repeat_btn.setFixedWidth(75)
-        self.subtitles_btn.setFixedWidth(65)
+        self.play_btn.setFixedWidth(50)
+        self.repeat_btn.setFixedWidth(65)
+        self.subtitles_btn.setFixedWidth(60)
         
         self.play_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.repeat_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
@@ -110,8 +129,8 @@ class PlayerControlBar(QFrame):
 
         # Connect signals
         self.play_btn.clicked.connect(self.play_toggled.emit)
-        self.repeat_btn.clicked.connect(self.repeat_toggled.emit)
-        self.subtitles_btn.clicked.connect(self.subtitle_toggled.emit) # ربط الزر بالإشارة
+        self.repeat_btn.clicked.connect(self.cycle_repeat_mode) # استخدام دالة التبديل الجديدة
+        self.subtitles_btn.clicked.connect(self.subtitle_toggled.emit) 
 
         # Restored the custom ClickableSlider
         self.slider = ClickableSlider(Qt.Orientation.Horizontal)
@@ -119,9 +138,12 @@ class PlayerControlBar(QFrame):
         self.slider.setEnabled(False)
         self.slider.sliderMoved.connect(self.seek_requested.emit)
 
-        self.time_label = QLabel("00:00 / 00:00")
-        self.time_label.setFixedWidth(160)
+        # تم التعديل هنا لدعم النقر على الوقت
+        self.time_label = ClickableLabel("00:00 / 00:00")
+        self.time_label.setFixedWidth(150) # زيادة العرض قليلا لعلامة السالب
         self.time_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.time_label.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.time_label.clicked.connect(self.toggle_time_display)
 
         # أزرار التحكم بالمسار
         self.stop_btn = QPushButton("⏹")
@@ -134,22 +156,28 @@ class PlayerControlBar(QFrame):
         self.next_btn.clicked.connect(self.next_clicked.emit)
 
         for btn in [self.stop_btn, self.prev_btn, self.next_btn]:
-            btn.setFixedWidth(55)
+            btn.setFixedWidth(50)
             btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
             # Restored NoFocus
             btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
-        # ترتيب العناصر في الـ Layout كما طلبت (زر الترجمة على اليمين)
+        # ترتيب العناصر في الـ Layout
         layout.addWidget(self.play_btn)
         layout.addWidget(self.repeat_btn)
         layout.addWidget(self.slider, 1)
         layout.addWidget(self.time_label)
-        layout.addWidget(self.subtitles_btn) # نقل زر الترجمة هنا
-        layout.addWidget(self.prev_btn)      # السابق أولاً
-        layout.addWidget(self.stop_btn)      # إيقاف في المنتصف
-        layout.addWidget(self.next_btn)      # التالي أخيراً
+        layout.addWidget(self.subtitles_btn) 
+        layout.addWidget(self.prev_btn)      
+        layout.addWidget(self.stop_btn)      
+        layout.addWidget(self.next_btn)      
 
-    # الدالة الجديدة للتحكم في لون زر الترجمة
+        # تهيئة شكل زر التكرار الأولي
+        self.set_repeat_status(self.current_loop_status)
+
+    def toggle_time_display(self):
+        """التبديل بين عرض الوقت المنقضي والوقت المتبقي"""
+        self.show_remaining_time = not self.show_remaining_time
+
     def set_subtitle_status(self, is_active):
         """تحديث لون زر الترجمة بناءً على حالتها"""
         if is_active:
@@ -165,19 +193,46 @@ class PlayerControlBar(QFrame):
             # مسح الستايل المخصص ليعود للشكل الافتراضي
             self.subtitles_btn.setStyleSheet("")
 
-    def set_repeat_status(self, is_active):
-        """Original logic for toggling the repeat button visuals."""
-        if is_active:
+    def cycle_repeat_mode(self):
+        """التبديل بين حالات التكرار الثلاثة وإرسال الإشارة"""
+        if self.current_loop_status == "None":
+            new_status = "Playlist"
+        elif self.current_loop_status == "Playlist":
+            new_status = "Track"
+        else:
+            new_status = "None"
+            
+        self.set_repeat_status(new_status)
+        self.repeat_mode_changed.emit(new_status)
+
+    def set_repeat_status(self, status: str):
+        """
+        تحديث شكل زر التكرار ليتطابق مع حالة MPRIS.
+        status: "None", "Playlist", أو "Track"
+        """
+        self.current_loop_status = status
+        
+        if status == "Playlist":
             self.repeat_btn.setText("🔁 ✔️")
             self.repeat_btn.setStyleSheet("""
                 QPushButton {
-                    color: #afd89b; 
-                    border: 1px solid #afd89b; 
+                    color: #a6e3a1; 
+                    border: 1px solid #a6e3a1; 
                     background-color: #313244;
                     font-weight: bold;
                 }
             """)
-        else:
+        elif status == "Track":
+            self.repeat_btn.setText("🔂 1")
+            self.repeat_btn.setStyleSheet("""
+                QPushButton {
+                    color: #89b4fa; 
+                    border: 1px solid #89b4fa; 
+                    background-color: #313244;
+                    font-weight: bold;
+                }
+            """)
+        else: # "None"
             self.repeat_btn.setText("🔁 ✖")
             self.repeat_btn.setStyleSheet("""
                 QPushButton {
@@ -199,7 +254,13 @@ class PlayerControlBar(QFrame):
             
             # Update time label
             has_hours = duration >= 3600
-            time_str = f"{self._format_time(current_time, has_hours)} / {self._format_time(duration, has_hours)}"
+            
+            if self.show_remaining_time:
+                remaining_time = duration - current_time
+                time_str = f"-{self._format_time(remaining_time, has_hours)} / {self._format_time(duration, has_hours)}"
+            else:
+                time_str = f"{self._format_time(current_time, has_hours)} / {self._format_time(duration, has_hours)}"
+            
             self.time_label.setText(time_str)
             
             # Update Play/Pause button text
