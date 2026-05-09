@@ -44,8 +44,7 @@ class AsyncYouTubeDataFetcher(QThread):
                 # استخدام صورة oEmbed إذا كانت متوفرة لأنها دقيقة
                 thumb_url = data.get('thumbnail_url', thumb_url)
         except Exception:
-            # التعديل هنا: إذا فشل الاتصال، اجعل العنوان "YouTube Video" بدلاً من الـ ID الطويل
-            # لكي لا تظهر نصوص غريبة مثل "Video ID: xxxxxxx" في القائمة
+            # إذا فشل الاتصال، اجعل العنوان "YouTube Video"
             title = "YouTube Video"
 
         # 2. تحميل بايتات الصورة المصغرة (Thumbnail Bytes)
@@ -84,7 +83,7 @@ class PlaylistPanel(QFrame):
         self.setFixedWidth(300)
         self.setVisible(False)
         
-        # Catppuccin Mocha overlay style (slightly transparent crust/mantle)
+        # Catppuccin Mocha overlay style
         self.setStyleSheet("""
             QFrame { 
                 background-color: rgba(24, 24, 37, 230); 
@@ -151,8 +150,12 @@ class PlaylistPanel(QFrame):
         end_index = min(start_index + 6, len(self.playlist))
         batch = self.playlist[start_index:end_index]
             
-        for path in batch:
-            item_widget = self.create_item_widget(path)
+        for i, path in enumerate(batch):
+            # التحقق مما إذا كان هذا هو المقطع الأخير في القائمة كلها
+            global_index = start_index + i
+            is_last_video = (global_index == len(self.playlist) - 1)
+            
+            item_widget = self.create_item_widget(path, is_last_video)
             self.playlist_items_layout.addWidget(item_widget)
 
         self.loaded_items_count = end_index
@@ -174,7 +177,7 @@ class PlaylistPanel(QFrame):
             self.load_more_btn.clicked.connect(self.load_more_items)
             self.playlist_items_layout.addWidget(self.load_more_btn)
 
-    def create_item_widget(self, path):
+    def create_item_widget(self, path, is_last_video=False):
         """Creates a single video item widget for the playlist."""
         item_frame = QFrame()
         item_frame.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -193,6 +196,8 @@ class PlaylistPanel(QFrame):
         thumb_label.setStyleSheet("background-color: #11111b; color: #fab387; border-radius: 4px;")
         
         name_label = QLabel()
+        # استخدام Rich Text لدعم تلوين النص لاحقاً إذا لزم الأمر
+        name_label.setTextFormat(Qt.TextFormat.RichText)
         name_label.setStyleSheet("color: #cdd6f4; font-size: 11px; background: transparent;")
         name_label.setWordWrap(True)
 
@@ -203,7 +208,11 @@ class PlaylistPanel(QFrame):
             
             # بدء الجلب في الخلفية لتحديث الزر
             fetcher = AsyncYouTubeDataFetcher(path)
-            fetcher.data_fetched.connect(lambda t, u, b, nl=name_label, tl=thumb_label: self.update_yt_item(nl, tl, t, u, b))
+            # نمرر حالة (الفيديو الأخير) للدالة عبر lambda
+            fetcher.data_fetched.connect(
+                lambda t, u, b, nl=name_label, tl=thumb_label, last=is_last_video: 
+                self.update_yt_item(nl, tl, t, u, b, last)
+            )
             self.yt_fetchers.append(fetcher)
             fetcher.start()
         else:
@@ -215,12 +224,19 @@ class PlaylistPanel(QFrame):
             else:
                 thumb_label.setText("🎬")
 
-            # Filename formatting (Max 4 words for line 1, 2 words for line 2)
+            # Filename formatting
             name = os.path.basename(path)
             words = name.split()
             line1 = " ".join(words[:4])
             line2 = " ".join(words[4:6]) + "..." if len(words) > 4 else ""
-            name_label.setText(f"{line1}\n{line2}" if line2 else line1)
+            
+            final_text = f"{line1}<br>{line2}" if line2 else line1
+            
+            # إضافة علامة الفيديو الأخير إذا كان هو الأخير
+            if is_last_video:
+                final_text += "<br><span style='color:#f38ba8; font-weight:bold;'>🔚 المقطع الأخير</span>"
+                
+            name_label.setText(final_text)
         
         h_layout.addWidget(thumb_label)
         h_layout.addWidget(name_label, 1)
@@ -230,19 +246,22 @@ class PlaylistPanel(QFrame):
         
         return item_frame
 
-    def update_yt_item(self, name_label, thumb_label, title, uploader, image_bytes):
+    def update_yt_item(self, name_label, thumb_label, title, uploader, image_bytes, is_last_video):
         """تحديث بيانات اليوتيوب في الزر بعد انتهاء الجلب من الخلفية"""
-        # قص العنوان الطويل لكي لا يكسر الواجهة
+        # قص العنوان الطويل
         words = title.split()
         line1 = " ".join(words[:4])
         line2 = " ".join(words[4:7]) + "..." if len(words) > 4 else ""
-        display_title = f"{line1}\n{line2}" if line2 else line1
         
-        # إضافة اسم القناة بالأسفل (إذا توفرت)
+        display_text = f"{line1}<br>{line2}" if line2 else line1
+        
+        # إضافة اسم القناة بالأسفل
         if uploader:
-            display_text = f"{display_title}\n👤 {uploader[:15]}"
-        else:
-            display_text = display_title
+            display_text += f"<br><span style='color:#a6adc8;'>👤 {uploader[:15]}</span>"
+            
+        # إضافة علامة الفيديو الأخير
+        if is_last_video:
+            display_text += "<br><span style='color:#f38ba8; font-weight:bold;'>🔚 المقطع الأخير</span>"
             
         name_label.setText(display_text)
         
