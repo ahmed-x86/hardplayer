@@ -8,7 +8,7 @@ import json
 import re
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, 
                              QLabel, QTextEdit, QLineEdit, QPushButton,
-                             QScrollArea, QWidget, QFrame)
+                             QScrollArea, QWidget, QFrame, QApplication)
 from PyQt6.QtCore import QTimer, Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QFont, QPixmap
 from pathlib import Path
@@ -501,16 +501,46 @@ class YouTubeSearchDialog(QDialog):
         
         card_layout.addLayout(info_layout)
         
-        # 3. Play Button
+        # 3. Action Buttons (التعديل الجديد)
+        btn_layout = QVBoxLayout()
+        btn_layout.setSpacing(5)
+        
         play_btn = QPushButton("▶ Play")
-        play_btn.setFixedSize(80, 40)
+        play_btn.setFixedSize(110, 30)
+        play_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         play_btn.setStyleSheet("""
             QPushButton { background-color: #a6e3a1; color: #11111b; font-weight: bold; border-radius: 5px; }
             QPushButton:hover { background-color: #94e2d5; }
+            QPushButton:disabled { background-color: #585b70; color: #a6adc8; }
         """)
         play_btn.clicked.connect(lambda checked, url=link: self.select_video(url))
         
-        card_layout.addWidget(play_btn)
+        copy_btn = QPushButton("🔗 Copy Link")
+        copy_btn.setFixedSize(110, 30)
+        copy_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        copy_btn.setStyleSheet("""
+            QPushButton { background-color: #89b4fa; color: #11111b; font-weight: bold; border-radius: 5px; }
+            QPushButton:hover { background-color: #b4befe; }
+            QPushButton:disabled { background-color: #585b70; color: #a6adc8; }
+        """)
+        copy_btn.clicked.connect(lambda checked, url=link, btn=copy_btn: self.copy_link(url, btn))
+        
+        dl_btn = QPushButton("📥 Download")
+        dl_btn.setFixedSize(110, 30)
+        dl_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        dl_btn.setStyleSheet("""
+            QPushButton { background-color: #cba6f7; color: #11111b; font-weight: bold; border-radius: 5px; }
+            QPushButton:hover { background-color: #b4befe; }
+            QPushButton:disabled { background-color: #585b70; color: #a6adc8; }
+        """)
+        dl_btn.clicked.connect(lambda checked, url=link, p=play_btn, c=copy_btn, d=dl_btn: self.start_download_flow(url, p, c, d))
+        
+        btn_layout.addWidget(play_btn)
+        btn_layout.addWidget(copy_btn)
+        btn_layout.addWidget(dl_btn)
+        btn_layout.addStretch()
+        
+        card_layout.addLayout(btn_layout)
         self.scroll_layout.addWidget(card)
 
     def update_image(self, label, data, w, h):
@@ -522,6 +552,54 @@ class YouTubeSearchDialog(QDialog):
     def select_video(self, url):
         self.selected_url = url
         self.accept()
+
+    # --- الدوال الجديدة للنسخ والتحميل ---
+    
+    def copy_link(self, url, btn):
+        QApplication.clipboard().setText(url)
+        original_text = btn.text()
+        original_style = btn.styleSheet()
+        
+        btn.setText("Copied ✔️")
+        btn.setStyleSheet("""
+            QPushButton { background-color: #a6e3a1; color: #11111b; font-weight: bold; border-radius: 5px; }
+        """)
+        
+        QTimer.singleShot(1500, lambda: self.reset_button(btn, original_text, original_style))
+
+    def reset_button(self, btn, text, style):
+        btn.setText(text)
+        btn.setStyleSheet(style)
+
+    def start_download_flow(self, url, play_btn, copy_btn, dl_btn):
+        # تعطيل الأزرار حتى لا يتم الضغط أكثر من مرة
+        play_btn.setEnabled(False)
+        copy_btn.setEnabled(False)
+        dl_btn.setEnabled(False)
+        dl_btn.setText("⏳ Fetching...")
+        
+        # استدعاء YTInfoFetcher المدمج لإنهاء جلب البيانات
+        self.fetcher = YTInfoFetcher(url)
+        self.fetcher.finished.connect(self.on_info_fetched)
+        self.fetcher.error.connect(lambda err: self.on_fetch_error(err, play_btn, copy_btn, dl_btn))
+        self.fetcher.start()
+
+    def on_info_fetched(self, info):
+        # استدعاء محلي لتجنب الـ Circular Import
+        from ui_components import QualitySelectorDialog 
+        
+        # إغلاق نافذة البحث والانتقال لتحميل
+        self.accept() 
+        selector = QualitySelectorDialog(info, self.parent())
+        selector.show()
+
+    def on_fetch_error(self, err, play_btn, copy_btn, dl_btn):
+        # تفعيل الأزرار مرة أخرى في حالة الخطأ
+        play_btn.setEnabled(True)
+        copy_btn.setEnabled(True)
+        dl_btn.setEnabled(True)
+        dl_btn.setText("📥 Download")
+        print(f"[*] ⚠️ Fetch error during search download: {err}")
 
 # --- New Components for Background Fetching and Downloading (System yt-dlp version) ---
 
@@ -727,7 +805,6 @@ class DownloadWorker(QThread):
             if str(e) == "DOWNLOAD_CANCELLED":
                 print("[*] 🛑 Download was manually cancelled.")
                 if self._delete_parts:
-                    # مسح الملفات غير المكتملة
                     for fpath in self.downloaded_filepaths:
                         for ext in ['', '.part', '.ytdl']:
                             f = fpath + ext
