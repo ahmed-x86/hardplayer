@@ -1,4 +1,4 @@
-# 🎬 HardPlayer (26.0.0)
+# 🎬 HardPlayer (27.0.0)
 
 HardPlayer is a lightweight, high-performance modular media player built with **Python**, **PyQt6**, and the **MPV Engine**. It combines native system integration with a sleek **Catppuccin Mocha** aesthetic and a pro-grade YouTube acquisition engine.
 
@@ -8,7 +8,7 @@ Developed by **Ahmed (ahmed-x86)**, this player follows the "KISS" philosophy, s
 
 ![License](https://img.shields.io/badge/License-GPLv3-blue.svg)
 ![Platform](https://img.shields.io/badge/Platform-Linux%20-lightgrey)
-![Version](https://img.shields.io/badge/Version-26.0.0-mauve)
+![Version](https://img.shields.io/badge/Version-27.0.0-mauve)
 ![Theme](https://img.shields.io/badge/Theme-Catppuccin%20Mocha-blue)
 
 ---
@@ -17,12 +17,19 @@ Developed by **Ahmed (ahmed-x86)**, this player follows the "KISS" philosophy, s
 
 | Variant | Ubuntu / Debian (DEB) | Fedora / Suse (RPM) | Arch Linux (Pacman) |
 | :--- | :--- | :--- | :--- |
-| **Standalone (Bundled Qt)** | [Download DEB](https://github.com/ahmed-x86/hardplayer/releases/download/v26.0.0/hardplayer-standalone_26.0.0_amd64.deb) | [Download RPM](https://github.com/ahmed-x86/hardplayer/releases/download/v26.0.0/hardplayer-standalone-26.0.0-1.x86_64.rpm) | [Download Pacman](https://github.com/ahmed-x86/hardplayer/releases/download/v26.0.0/hardplayer-standalone-26.0.0-1-x86_64.pkg.tar.zst) |
-| **System-Qt (Lightweight)** | [Download DEB](https://github.com/ahmed-x86/hardplayer/releases/download/v26.0.0/hardplayer-system-qt_26.0.0_amd64.deb) | [Download RPM](https://github.com/ahmed-x86/hardplayer/releases/download/v26.0.0/hardplayer-system-qt-26.0.0-1.x86_64.rpm) | [Download Pacman](https://github.com/ahmed-x86/hardplayer/releases/download/v26.0.0/hardplayer-system-qt-26.0.0-1-x86_64.pkg.tar.zst) |
+| **Standalone (Bundled Qt)** | [Download DEB](https://github.com/ahmed-x86/hardplayer/releases/download/v27.0.0/hardplayer-standalone_27.0.0_amd64.deb) | [Download RPM](https://github.com/ahmed-x86/hardplayer/releases/download/v27.0.0/hardplayer-standalone-27.0.0-1.x86_64.rpm) | [Download Pacman](https://github.com/ahmed-x86/hardplayer/releases/download/v27.0.0/hardplayer-standalone-27.0.0-1-x86_64.pkg.tar.zst) |
+| **System-Qt (Lightweight)** | [Download DEB](https://github.com/ahmed-x86/hardplayer/releases/download/v27.0.0/hardplayer-system-qt_27.0.0_amd64.deb) | [Download RPM](https://github.com/ahmed-x86/hardplayer/releases/download/v27.0.0/hardplayer-system-qt-27.0.0-1.x86_64.rpm) | [Download Pacman](https://github.com/ahmed-x86/hardplayer/releases/download/v27.0.0/hardplayer-system-qt-27.0.0-1-x86_64.pkg.tar.zst) |
 
 ---
 
-### 🔧 What's Changed in v26.0.0?
+### 🔧 What's Changed in v27.0.0?
+
+* **Crash-Proof Auto Resume**: State management has been drastically improved. If your machine loses power, the system crashes, or the app is abruptly closed, HardPlayer will flawlessly resume the video from the exact second it stopped.
+* **Upgraded Search Workflow**: The built-in YouTube search interface now features dedicated **"Download"** and **"Copy Link"** buttons directly on every video card, bypassing the need to navigate through the URL input dialog.
+* **Refined Codebase Modularity**: The fetching logic and UI components continue to be isolated into specialized modules (`ui_components.py`, `youtube_feature.py`), optimizing overall maintainability.
+* **Embedded Assets**: UI icons remain cleanly embedded directly inside the compiled Nuitka binary structure.
+
+## ✨ What's New in v26.0.0?
 
 * **Auto Resume (Smart Playback)**: Videos now remember exactly where you left off. Reopening a previously watched file prompts a seamlessly integrated resume dialog, letting you continue playback instantly.
 * **Codebase Modularity**: Separated the resume logic (`ui_components_continue.py`) and YouTube Playlist fetching into independent modules, establishing a cleaner, highly maintainable architecture.
@@ -110,9 +117,10 @@ HardPlayer provides easy methods for testing and development:
 
 **clone the repo**
 ```bash
-git clone [https://github.com/ahmed-x86/hardplayer.git](https://github.com/ahmed-x86/hardplayer.git)
+git clone https://github.com/ahmed-x86/hardplayer.git
 cd hardplayer
 python hardplayer.py
+
 
 ```
 
@@ -143,7 +151,6 @@ hardplayer /path/to/video.mp4 -device old_nvidia
 
 ```bash
 hardplayer "[https://www.youtube.com/watch?v=test](https://www.youtube.com/watch?v=test)" -quality 1080p -device old_nvidia
-
 ```
 
 **3. Direct YouTube Search**
@@ -151,7 +158,6 @@ hardplayer "[https://www.youtube.com/watch?v=test](https://www.youtube.com/watch
 
 ```bash
 hardplayer -search "test"
-
 ```
 
 **4. Audio-Only Mode (Podcasts)**
@@ -159,7 +165,6 @@ hardplayer -search "test"
 
 ```bash
 hardplayer "[https://www.youtube.com/watch?v=test](https://www.youtube.com/watch?v=test)" -quality audio
-
 ```
 
 **5. Combined Search & Fast Launch**
@@ -167,7 +172,6 @@ hardplayer "[https://www.youtube.com/watch?v=test](https://www.youtube.com/watch
 
 ```bash
 hardplayer -search "test" -quality 720p -device cpu
-
 ```
 
 ---
@@ -186,16 +190,14 @@ hardplayer -search "test" -quality 720p -device cpu
 
 ```bash
 sudo pacman -S aria2  # Required for high-speed downloads
-sudo pacman -U hardplayer-system-qt-26.0.0-1-x86_64.pkg.tar.zst
-
+sudo pacman -U hardplayer-system-qt-27.0.0-1-x86_64.pkg.tar.zst
 ```
 
 ### Debian/Ubuntu (DEB):
 
 ```bash
 sudo apt install aria2
-sudo dpkg -i hardplayer-system-qt_26.0.0_amd64.deb
-
+sudo dpkg -i hardplayer-system-qt_27.0.0_amd64.deb
 ```
 
 ## 📦 Requirements
