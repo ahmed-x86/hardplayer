@@ -1,4 +1,4 @@
-# 🎬 HardPlayer (27.0.0)
+# 🎬 HardPlayer (28.0.0)
 
 HardPlayer is a lightweight, high-performance modular media player built with **Python**, **PyQt6**, and the **MPV Engine**. It combines native system integration with a sleek **Catppuccin Mocha** aesthetic and a pro-grade YouTube acquisition engine.
 
@@ -16,13 +16,19 @@ Developed by **Ahmed (ahmed-x86)**, this player follows the "KISS" philosophy, s
 ## 📥 Download Links
 
 | Variant | Ubuntu / Debian (DEB) | Fedora / Suse (RPM) | Arch Linux (Pacman) |
-| :--- | :--- | :--- | :--- |
-| **Standalone (Bundled Qt)** | [Download DEB](https://github.com/ahmed-x86/hardplayer/releases/download/v27.0.0/hardplayer-standalone_27.0.0_amd64.deb) | [Download RPM](https://github.com/ahmed-x86/hardplayer/releases/download/v27.0.0/hardplayer-standalone-27.0.0-1.x86_64.rpm) | [Download Pacman](https://github.com/ahmed-x86/hardplayer/releases/download/v27.0.0/hardplayer-standalone-27.0.0-1-x86_64.pkg.tar.zst) |
-| **System-Qt (Lightweight)** | [Download DEB](https://github.com/ahmed-x86/hardplayer/releases/download/v27.0.0/hardplayer-system-qt_27.0.0_amd64.deb) | [Download RPM](https://github.com/ahmed-x86/hardplayer/releases/download/v27.0.0/hardplayer-system-qt-27.0.0-1.x86_64.rpm) | [Download Pacman](https://github.com/ahmed-x86/hardplayer/releases/download/v27.0.0/hardplayer-system-qt-27.0.0-1-x86_64.pkg.tar.zst) |
+| --- | --- | --- | --- |
+| **Standalone (Bundled Qt)** | [Download DEB]() | [Download RPM]() | [Download Pacman]() |
+| **System-Qt (Lightweight)** | [Download DEB]() | [Download RPM]() | [Download Pacman]() |
 
 ---
 
-### 🔧 What's Changed in v27.0.0?
+### 🔧 What's Changed in v28.0.0?
+
+* **YouTube Playlist Downloader**: Added full support for downloading complete YouTube playlists effortlessly.
+* **Massive Codebase Refactoring**: The YouTube engine has been modularized into highly specialized components (`yt_downloader.py`, `yt_search_engine.py`, `yt_info_fetcher.py`, `yt_dialogs.py`, `yt_assets_fetcher.py`, etc.) for superior maintainability and performance.
+* **Enhanced UI Modularity**: Further separation of UI components including `ui_components_download_playlist.py` and `playlist_panel.py`.
+
+## ✨ What's New in v27.0.0?
 
 * **Crash-Proof Auto Resume**: State management has been drastically improved. If your machine loses power, the system crashes, or the app is abruptly closed, HardPlayer will flawlessly resume the video from the exact second it stopped.
 * **Upgraded Search Workflow**: The built-in YouTube search interface now features dedicated **"Download"** and **"Copy Link"** buttons directly on every video card, bypassing the need to navigate through the URL input dialog.
@@ -150,7 +156,7 @@ hardplayer /path/to/video.mp4 -device old_nvidia
 *Bypasses all dialogs and streams the URL directly with the requested settings.*
 
 ```bash
-hardplayer "[https://www.youtube.com/watch?v=test](https://www.youtube.com/watch?v=test)" -quality 1080p -device old_nvidia
+hardplayer "https://www.youtube.com/watch?v=test" -quality 1080p -device old_nvidia
 ```
 
 **3. Direct YouTube Search**
@@ -158,13 +164,14 @@ hardplayer "[https://www.youtube.com/watch?v=test](https://www.youtube.com/watch
 
 ```bash
 hardplayer -search "test"
+
 ```
 
 **4. Audio-Only Mode (Podcasts)**
 *Disables video output to drastically save RAM and bandwidth. Great for background listening.*
 
 ```bash
-hardplayer "[https://www.youtube.com/watch?v=test](https://www.youtube.com/watch?v=test)" -quality audio
+hardplayer "https://www.youtube.com/watch?v=test" -quality audio
 ```
 
 **5. Combined Search & Fast Launch**
@@ -190,14 +197,14 @@ hardplayer -search "test" -quality 720p -device cpu
 
 ```bash
 sudo pacman -S aria2  # Required for high-speed downloads
-sudo pacman -U hardplayer-system-qt-27.0.0-1-x86_64.pkg.tar.zst
+sudo pacman -U hardplayer-system-qt-28.0.0-1-x86_64.pkg.tar.zst
 ```
 
 ### Debian/Ubuntu (DEB):
 
 ```bash
 sudo apt install aria2
-sudo dpkg -i hardplayer-system-qt_27.0.0_amd64.deb
+sudo dpkg -i hardplayer-system-qt_28.0.0_amd64.deb
 ```
 
 ## 📦 Requirements
@@ -211,6 +218,6 @@ Ensure the following are installed:
 
 ---
 
-**Developed with ☕ and Arch Linux by:** [ahmed-x86](https://github.com/ahmed-x86)
+**Developed with ☕ and Arch Linux by:** [ahmed-x86]()
 
 *"Keep it simple, keep it elegant, keep it fast."*
