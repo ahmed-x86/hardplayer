@@ -895,15 +895,79 @@ class YouTubeURLDialog(QDialog):
     def process_url(self):
         url = self.url_input.text().strip()
         if url:
-            from youtube_feature import YTInfoFetcher
             self.lbl.setText("Fetching metadata... ⏳")
             self.next_btn.setEnabled(False)
-            self.fetcher = YTInfoFetcher(url)
-            self.fetcher.finished.connect(self.show_selector)
-            self.fetcher.start()
+            
+            if "list=" in url:
+                from ui_components_download_playlist import PlaylistFetchWorker
+                self.fetcher = PlaylistFetchWorker(url)
+                self.fetcher.finished.connect(self.handle_playlist_fetched)
+                self.fetcher.start()
+            else:
+                from youtube_feature import YTInfoFetcher
+                self.fetcher = YTInfoFetcher(url)
+                self.fetcher.finished.connect(self.show_selector)
+                self.fetcher.start()
+
+    def handle_playlist_fetched(self, videos_list):
+        if not videos_list:
+            self.lbl.setText("❌ Failed to fetch playlist or empty.")
+            self.next_btn.setEnabled(True)
+            return
+
+        from ui_components_download_playlist import PlaylistModeDialog, PlaylistSelectionDialog, PlaylistProgressDialog
+        from youtube_feature import YTInfoFetcher
+
+        
+        mode_dlg = PlaylistModeDialog(self)
+        if mode_dlg.exec() != QDialog.DialogCode.Accepted:
+            self.next_btn.setEnabled(True)
+            self.lbl.setText("Enter YouTube URL to Download:")
+            return
+
+        selected_videos = videos_list
+        if mode_dlg.mode == "select":
+            # 2. نافذة التحديد
+            select_dlg = PlaylistSelectionDialog(videos_list, self)
+            if select_dlg.exec() == QDialog.DialogCode.Accepted:
+                selected_videos = select_dlg.get_selected_videos()
+            else:
+                self.next_btn.setEnabled(True)
+                self.lbl.setText("Enter YouTube URL to Download:")
+                return
+
+        if not selected_videos:
+            self.next_btn.setEnabled(True)
+            self.lbl.setText("Enter YouTube URL to Download:")
+            return
+
+        
+        self.lbl.setText("Getting quality options... ⏳")
+        first_url = selected_videos[0]['url']
+        
+        def on_first_video_info(info):
+            self.accept() # إغلاق نافذة الـ URL
+            # إظهار نافذة الجودة
+            selector = QualitySelectorDialog(info, self.parent())
+            
+            # اختطاف وظيفة start_dl لنوجهها للقائمة بدل فيديو فردي
+            def custom_start_dl(code, name):
+                options_dlg = DownloadOptionsDialog(selector)
+                if options_dlg.exec() == QDialog.DialogCode.Accepted:
+                    dl_options = options_dlg.get_options()
+                    # فتح نافذة القوائم النهائية
+                    pl_dlg = PlaylistProgressDialog(selected_videos, code, name, dl_options, selector.parent())
+                    pl_dlg.show()
+                    selector.close()
+            
+            selector.start_dl = custom_start_dl
+            selector.show()
+
+        self.info_fetcher = YTInfoFetcher(first_url)
+        self.info_fetcher.finished.connect(on_first_video_info)
+        self.info_fetcher.start()
 
     def show_selector(self, info):
         selector = QualitySelectorDialog(info, self.parent())
         selector.show()
         self.accept()
-        
