@@ -4,7 +4,7 @@ import os
 import re
 import subprocess
 
-# الرقعة السحرية لإصلاح تجميد شريط التقدم للـ FFmpeg
+# The magic patch to fix FFmpeg progress bar freezing
 original_popen = subprocess.Popen
 
 def patched_popen(cmd, *args, **kwargs):
@@ -20,7 +20,7 @@ from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import QFileDialog, QMessageBox, QMenu
 from ui_components_convert import ConversionDialogUI
 
-# استيراد جميع ملفات الـ API الـ 18
+# Import all 18 API files
 from convert.to_mp4_api import ToMp4Worker
 from convert.to_mp4_by_cuda_api import ToMp4CudaWorker
 from convert.to_mp4_nvenc_api import ToMp4NvencWorker
@@ -96,7 +96,7 @@ class ConvertMenuManager:
             self.dialog.extract_metadata(file_path)
 
     def start_conversion(self, mode, button_name):
-        # منع التشغيل إذا لم يتم اختيار ملف
+        # Prevent execution if no file is selected
         if not self.dialog.input_file:
             QMessageBox.warning(self.dialog, "Warning", "Please select a file first.")
             return
@@ -183,7 +183,7 @@ class ConvertMenuManager:
             current_seconds = int(hours) * 3600 + int(minutes) * 60 + float(seconds)
             speed_str = f" | Speed: {getattr(self.dialog, 'last_speed', '0.0')}x"
             
-            # إذا استطعنا التقاط المدة، نحسب النسبة المئوية
+            # If we can capture the duration, calculate the percentage
             if hasattr(self.dialog, 'total_duration') and self.dialog.total_duration > 0:
                 percent = (current_seconds / self.dialog.total_duration) * 100
                 percent = min(100, max(0, percent)) 
@@ -191,10 +191,10 @@ class ConvertMenuManager:
                 self.dialog.progress_bar.setValue(int(percent))
                 self.dialog.progress_bar.setFormat(f"{percent:.1f}%")
                 self.dialog.lbl_status.setText(f"Converting... {percent:.1f}% {speed_str}")
-            # إذا كانت المدة مجهولة (النسبة غير ممكنة)، نعرض الوقت المنقضي
+            # If the duration is unknown (percentage not possible), display the elapsed time
             else:
-                self.dialog.progress_bar.setMaximum(0) # تفعيل الحركة المستمرة
-                sec_display = seconds[:5] # لتجنب كثرة الأرقام العشرية
+                self.dialog.progress_bar.setMaximum(0) # Activate continuous animation (indeterminate mode)
+                sec_display = seconds[:5] # To avoid too many decimal places
                 self.dialog.lbl_status.setText(f"Converting... Time: {hours}:{minutes}:{sec_display} {speed_str}")
 
     def conversion_finished(self, out_path):
@@ -210,7 +210,7 @@ class ConvertMenuManager:
         self.dialog.progress_bar.setValue(0)
         self.dialog.lbl_status.setText("Error or Cancelled. ❌")
         self.reset_ui()
-        if "cancelled" not in err_msg.lower() and "إلغاء" not in err_msg:
+        if "cancelled" not in err_msg.lower() and "cancel" not in err_msg.lower():
             QMessageBox.critical(self.dialog, "Error", err_msg)
 
     def handle_cancel(self, delete_files):
