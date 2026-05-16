@@ -30,15 +30,15 @@ from ui_components_continue import ResumeManager, ContinueDialog
 try:
     from gi.repository import GLib
 except ImportError:
-    GLib = None # تم التعديل هنا: نحدد المتغير كـ None بدلاً من تجاهله لتجنب NameError
+    GLib = None # Modified here: We set the variable to None instead of ignoring it to avoid NameError
 
 # --- New: YouTube Playlist Fetcher Thread ---
 class YouTubePlaylistFetcher(QThread):
     """
-    خيط (Thread) يعمل في الخلفية لجلب جميع الفيديوهات داخل قائمة تشغيل يوتيوب
-    باستخدام yt-dlp بدون تجميد واجهة المستخدم.
+    Background thread to fetch all videos inside a YouTube playlist
+    using yt-dlp without freezing the user interface.
     """
-    playlist_fetched = pyqtSignal(list, str) # يرسل (قائمة الروابط، الرابط الأصلي)
+    playlist_fetched = pyqtSignal(list, str) # Sends (list of URLs, original URL)
 
     def __init__(self, url):
         super().__init__()
@@ -62,7 +62,7 @@ class YouTubePlaylistFetcher(QThread):
                 if not line.strip(): continue
                 try:
                     data = json.loads(line)
-                    # استخراج رابط الفيديو من القائمة
+                    # Extract the video URL from the list
                     vid_url = data.get('url') or data.get('webpage_url')
                     if not vid_url and data.get('id'):
                         vid_url = f"https://www.youtube.com/watch?v={data['id']}"
@@ -83,7 +83,7 @@ class HardPlayerWindow(QMainWindow):
     """
     The main application window. Acts as a controller connecting the UI to the MPV engine.
     """
-    # إشارة تخبرنا أن الفيديو قد انتهى بأمان
+    # Signal indicating that the video has ended safely
     video_ended = pyqtSignal()
 
     def __init__(self, cli_path=None, cli_device=None, cli_search=False, cli_quality=None):
@@ -162,13 +162,13 @@ class HardPlayerWindow(QMainWindow):
         self.current_index = -1
         self._keyboard_seeking = False
         
-        # --- استدعاء مدير قائمة التحويل وربطه بالنافذة الرئيسية ---
+        # --- Call the conversion menu manager and link it to the main window ---
         self.convert_manager = ConvertMenuManager(self)
         
-        # --- تفعيل مدير اختصارات لوحة المفاتيح ---
+        # --- Activate the keyboard shortcut manager ---
         self.keyboard_handler = KeyboardShortcutHandler(self)
         
-        # --- مدير الاستئناف (حفظ أوقات الفيديو) ---
+        # --- Resume Manager (save video times) ---
         self.resume_manager = ResumeManager()
 
     def setup_logo_screen(self):
@@ -216,18 +216,18 @@ class HardPlayerWindow(QMainWindow):
         )
 
         # ==========================================
-        # --- فرض نافذة الفيديو لتعمل الترجمة مع الصوتيات ---
+        # --- Force the video window for subtitles to work with audio files ---
         # ==========================================
         self.player['force-window'] = 'yes'
 
-        # إعداد التكرار الأولي للبرنامج
+        # Initial repeat setup for the program
         self.current_loop_status = "None"
         self.player['loop-file'] = 'no'
         
-        # --- إضافة: السماح بالبحث التلقائي عن ملفات الترجمة ---
+        # --- Addition: Allow automatic search for subtitle files ---
         self.player['sub-auto'] = 'fuzzy'
 
-        # --- تخصيص شكل الترجمة (ستايل المربع الشفاف) ---
+        # --- Customize subtitle appearance (transparent box style) ---
         self.player['sub-color'] = '#c4a6f1'           
         self.player['sub-back-color'] = '#B31d1d2c'    
         self.player['sub-border-style'] = 'opaque-box' 
@@ -236,9 +236,9 @@ class HardPlayerWindow(QMainWindow):
         self.player['sub-margin-y'] = 40               
 
         # ==========================================
-        # --- إصلاح منطق إزاحة الأسطر (The Sliding Logic) ---
+        # --- Fix line sliding logic (The Sliding Logic) ---
         # ==========================================
-        # هذا هو السطر الذي سيدمر إحداثيات يوتيوب ويجعل النص ينزلق بسلاسة للأعلى
+        # This is the line that will destroy YouTube coordinates and make the text slide smoothly upwards
         self.player['sub-ass-override'] = 'strip' 
         
         self.player['sub-fix-timing'] = 'no' 
@@ -246,13 +246,13 @@ class HardPlayerWindow(QMainWindow):
         self.player['sub-use-margins'] = 'yes'
         self.player['sub-align-y'] = 'bottom'
         
-        # حالة تفعيل الترجمة في الواجهة
+        # Subtitle activation state in the UI
         self._subtitles_enabled = False
 
-        # ربط مراقب (Observer) لخاصية sub-text للتأكد من عدم ظهور مربعات فارغة
+        # Bind an Observer to the sub-text property to ensure empty boxes do not appear
         self.player.observe_property('sub-text', self.on_sub_text_change)
         
-        # مراقبة متى ينتهي الفيديو لنتحكم بالقائمة "بضمير"
+        # Monitor when the video ends so we can reliably control the playlist
         self.player.observe_property('eof-reached', self.on_eof_reached)
 
         # UI Timer
@@ -275,12 +275,12 @@ class HardPlayerWindow(QMainWindow):
         self.controls.prev_clicked.connect(self.play_previous)
         self.controls.seek_requested.connect(self.seek_video)
         
-        # ربط التكرار الجديد
+        # Bind the new repeat
         self.controls.repeat_mode_changed.connect(self.handle_ui_repeat_change)
-        # ربط الترجمة
+        # Bind subtitles
         self.controls.subtitle_toggled.connect(self.toggle_subtitles)
         
-        # ربط إشارة انتهاء الفيديو
+        # Bind video ended signal
         self.video_ended.connect(self.handle_video_ended)
 
     # ==========================================
@@ -307,7 +307,7 @@ class HardPlayerWindow(QMainWindow):
         )
 
     def closeEvent(self, event):
-        """يتم استدعاؤها عند إغلاق نافذة البرنامج بالكامل"""
+        """Called when the application window is fully closed"""
         try:
             current_path = getattr(self.player, 'path', None)
             current_time = getattr(self.player, 'time_pos', None)
@@ -325,14 +325,14 @@ class HardPlayerWindow(QMainWindow):
     # ==========================================
     def _start_playback_with_resume(self, source):
         """
-        وسيط قبل إرسال الأمر للمحرك. 
-        يفحص وقت التوقف ويظهر النافذة إذا لزم الأمر.
+        Intermediary before sending the command to the engine. 
+        Checks the stop time and shows the dialog if necessary.
         """
         saved_time = self.resume_manager.get_position(source)
         
-        if saved_time > 5.0: # إذا كان هناك وقت محفوظ أكبر من 5 ثواني
+        if saved_time > 5.0: # If there is a saved time greater than 5 seconds
             dialog = ContinueDialog(self, saved_time)
-            dialog.exec() # سيتوقف الكود هنا حتى يختار المستخدم (النافذة محمية من الإغلاق)
+            dialog.exec() # Code will pause here until the user makes a choice (the dialog is protected from closing)
             
             if dialog.choice == "continue":
                 self.player['start'] = str(saved_time)
@@ -383,9 +383,9 @@ class HardPlayerWindow(QMainWindow):
     # --- Loop Logic (Simple Mode) ---
     # ==========================================
     def handle_ui_repeat_change(self, status: str):
-        """يتغير الوضع عند النقر على الزر في الواجهة"""
+        """Status changes when the button in the UI is clicked"""
         self.current_loop_status = status
-        # نخبر MPV ليعيد مقطع واحد فقط، أو لا يفعل شيء في الحالات الأخرى (ونتحكم نحن)
+        # Tell MPV to repeat only one track, or do nothing in other cases (and we control it)
         self.player['loop-file'] = 'inf' if status == "Track" else 'no'
         print(f"[*] 🔁 Loop Mode: {status}")
         
@@ -393,25 +393,25 @@ class HardPlayerWindow(QMainWindow):
             self.mpris_provider.update_loop_status(status)
 
     def handle_mpris_loop_change(self, status: str):
-        """يتغير الوضع من الهاتف"""
+        """Status changes from the phone"""
         self.current_loop_status = status
         self.player['loop-file'] = 'inf' if status == "Track" else 'no'
         self.controls.set_repeat_status(status)
 
     def on_eof_reached(self, name, value):
-        """عندما ينتهي تشغيل ملف، MPV يرسل هذه القيمة كـ True"""
+        """When a file finishes playing, MPV sends this value as True"""
         if value:
             self.video_ended.emit()
 
     def handle_video_ended(self):
-        """الفصل في ما يحدث بعد انتهاء الفيديو بناءً على القائمة"""
+        """Determine what happens after the video ends based on the playlist"""
         if not self.playlist: return
-        if self.current_loop_status == "Track": return # MPV يعيده لوحده
+        if self.current_loop_status == "Track": return # MPV loops it automatically
 
         is_last_video = (self.current_index >= len(self.playlist) - 1)
 
         if self.current_loop_status == "Playlist":
-            # play_next ستنتقل للتالي، وإذا كان الأخير ستعود للأول بفضل العلامة %
+            # play_next will go to the next, and if it's the last, it will return to the first thanks to the % operator
             self.play_next()
         elif self.current_loop_status == "None":
             if not is_last_video:
@@ -419,13 +419,13 @@ class HardPlayerWindow(QMainWindow):
             else:
                 self.stop_playback()
 
-    # --- إضافة: دالة التبديل للترجمة بأمان (Safe Toggle) ---
+    # --- Addition: Safe subtitle toggle function (Safe Toggle) ---
     def toggle_subtitles(self):
-        """التحكم في إظهار أو إخفاء الترجمة وتغيير لون الزر"""
+        """Control showing or hiding subtitles and change the button state"""
         try:
             self._subtitles_enabled = not getattr(self, '_subtitles_enabled', False)
             
-            # جلب النص الحالي بأمان تام لتفادي انهيار المحرك إذا لم يكن جاهزاً
+            # Safely fetch the current text to prevent engine crash if it's not ready
             current_text = ""
             try:
                 current_text = getattr(self.player, 'sub_text', "")
@@ -447,7 +447,7 @@ class HardPlayerWindow(QMainWindow):
             print(f"[*] ⚠️ Error toggling subtitles: {e}")
 
     def on_sub_text_change(self, name, value):
-        """مراقب لضمان عدم ظهور المربع المعتم إذا كان النص فارغاً (Safe Observer)"""
+        """Observer to ensure the dark box doesn't appear if the text is empty (Safe Observer)"""
         try:
             if not getattr(self, '_subtitles_enabled', False):
                 self.player['sub-visibility'] = False
@@ -458,7 +458,7 @@ class HardPlayerWindow(QMainWindow):
             else:
                 self.player['sub-visibility'] = True
         except Exception:
-            # تجاهل صامت لتفادي أي أخطاء أثناء تغيير حالة الفيديو (Core Dump prevention)
+            # Silent ignore to prevent any errors during video state changes (Core Dump prevention)
             pass
 
     def seek_video(self, position):
@@ -466,7 +466,7 @@ class HardPlayerWindow(QMainWindow):
 
     def play_next(self):
         if self.playlist:
-            # بفضل % len()، هذه الدالة ترجع لأول فيديو إذا كنا في آخر فيديو
+            # Thanks to % len(), this function returns to the first video if we are at the last video
             self.current_index = (self.current_index + 1) % len(self.playlist)
             self.player.play(self.playlist[self.current_index])
 
@@ -637,7 +637,7 @@ class HardPlayerWindow(QMainWindow):
         except Exception:
             pass
             
-        # إعادة ضبط الحالة عند تشغيل فيديو جديد
+        # Reset state when playing a new video
         self._subtitles_enabled = False
         self.controls.set_subtitle_status(False)
         # ==========================================
