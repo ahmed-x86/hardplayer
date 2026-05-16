@@ -5,46 +5,46 @@ from PyQt6.QtWidgets import QApplication, QLineEdit, QTextEdit, QPlainTextEdit
 
 class KeyboardShortcutHandler(QObject):
     """
-    مدير اختصارات لوحة المفاتيح. يعمل كـ Event Filter لالتقاط الضغطات 
-    قبل أن تستهلكها عناصر الواجهة الأخرى (مثل مشكلة زر المسطرة).
+    Keyboard shortcuts manager. Works as an Event Filter to capture key presses
+    before other UI elements consume them (such as the spacebar issue).
     """
     def __init__(self, main_window):
         super().__init__()
         self.main_window = main_window
         
-        # تثبيت الفلتر على مستوى التطبيق بالكامل
+        # Install the filter at the entire application level
         QApplication.instance().installEventFilter(self)
 
     def eventFilter(self, obj, event):
         if event.type() == QEvent.Type.KeyPress:
-            # 1. إذا كانت النافذة الرئيسية غير نشطة (مثل وجود نافذة فرعية مفتوحة)، اترك الحدث يمر
+            # 1. If the main window is inactive (e.g., a sub-window is open), let the event pass
             if not self.main_window.isActiveWindow():
                 return super().eventFilter(obj, event)
 
-            # 2. إذا كان المستخدم يكتب في مربع نص (مثل البحث)، لا نتدخل كي لا نمنعه من كتابة مسافة
+            # 2. If the user is typing in a text box (e.g., search), do not intervene so as not to prevent them from typing a space
             if isinstance(obj, (QLineEdit, QTextEdit, QPlainTextEdit)):
                 return super().eventFilter(obj, event)
 
             key = event.key()
             modifiers = event.modifiers()
 
-            # --- إصلاح مشكلة المسطرة (Space) ---
-            # إضافة المسطرة هنا مع إرجاع True يمنع الحدث من تفعيل الأزرار المحددة
+            # --- Fix the spacebar issue (Space) ---
+            # Adding the spacebar here along with returning True prevents the event from triggering focused buttons
             if key in (Qt.Key.Key_Space, Qt.Key.Key_MediaPlay, Qt.Key.Key_MediaTogglePlayPause, Qt.Key.Key_F8):
                 self.main_window.toggle_playback()
                 return True 
 
-            # [P] إظهار شاشة البداية
+            # [P] Show the startup screen
             elif key == Qt.Key.Key_P and getattr(self.main_window.player, 'core_idle', True):
                 self.main_window.show_startup_dialog()
                 return True
 
-            # [I] إظهار معلومات
+            # [I] Show info
             elif key == Qt.Key.Key_I:
                 self.main_window.show_info_dialog()
                 return True
 
-            # [Left] تأخير الفيديو
+            # [Left] Rewind video
             elif key == Qt.Key.Key_Left:
                 self.main_window._keyboard_seeking = True
                 if modifiers & Qt.KeyboardModifier.ShiftModifier:
@@ -56,7 +56,7 @@ class KeyboardShortcutHandler(QObject):
                 QTimer.singleShot(800, self.main_window._reset_seek_flag)
                 return True
 
-            # [Right] تقديم الفيديو
+            # [Right] Forward video
             elif key == Qt.Key.Key_Right:
                 self.main_window._keyboard_seeking = True
                 if modifiers & Qt.KeyboardModifier.ShiftModifier:
@@ -68,25 +68,25 @@ class KeyboardShortcutHandler(QObject):
                 QTimer.singleShot(800, self.main_window._reset_seek_flag)
                 return True
 
-            # [Media Next / F9] التالي
+            # [Media Next / F9] Next
             elif key in (Qt.Key.Key_MediaNext, Qt.Key.Key_F9):
                 self.main_window.play_next()
                 return True
 
-            # [Media Previous / F7] السابق
+            # [Media Previous / F7] Previous
             elif key in (Qt.Key.Key_MediaPrevious, Qt.Key.Key_F7):
                 self.main_window.play_previous()
                 return True
 
-            # [Media Stop] إيقاف
+            # [Media Stop] Stop
             elif key == Qt.Key.Key_MediaStop:
                 self.main_window.stop_playback()
                 return True
 
-            # [C] ترجمة
+            # [C] Subtitles
             elif key == Qt.Key.Key_C:
                 self.main_window.toggle_subtitles()
                 return True
 
-        # السماح بمرور باقي الأحداث (الأزرار غير المسجلة أعلاه) بشكل طبيعي
+        # Allow the rest of the events (unregistered keys above) to pass normally
         return super().eventFilter(obj, event)
