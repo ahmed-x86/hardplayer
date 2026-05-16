@@ -1,9 +1,9 @@
 # ui_components.py
 
 import subprocess
-import os # تمت الإضافة للتعامل مع المسارات
-import re # تمت الإضافة لحساب حجم التحميل
-from pathlib import Path # مطلوب للوصول للكاش
+import os # Added to handle paths
+import re # Added to calculate download size
+from pathlib import Path # Required to access cache
 from PyQt6.QtWidgets import (QWidget, QDialog, QVBoxLayout, QHBoxLayout, 
                              QLabel, QPushButton, QLineEdit, QSlider, QFrame, 
                              QProgressBar, QScrollArea, QTextEdit)
@@ -19,15 +19,15 @@ class ClickableSlider(QSlider):
     """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # منع السلايدر نهائياً من سرقة الكيبورد عشان الأسهم تشتغل لتقديم الفيديو
+        # Completely prevent the slider from stealing keyboard focus so arrow keys work for video seeking
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
-            # حساب القيمة النسبية بناءً على إحداثيات الضغطة في عرض السلايدر
+            # Calculate the relative value based on click coordinates across the slider width
             val = self.minimum() + ((self.maximum() - self.minimum()) * event.position().x()) / self.width()
             self.setValue(int(val))
-            # إرسال إشارة sliderMoved يدوياً ليقوم المشغل بعمل Seek فوراً
+            # Manually emit sliderMoved signal so the player performs a Seek immediately
             self.sliderMoved.emit(int(val))
         super().mousePressEvent(event)
 
@@ -142,7 +142,7 @@ class StartupDialog(QDialog):
     def play_url(self):
         query = self.yt_input.text().strip()
         if query:
-            # التعديل هنا: لو الرابط مباشر يشغله، لو كلام عادي يفتح نافذة البحث
+            # Modification here: if the link is direct, play it; if it is regular text, open the search window
             if query.startswith("http://") or query.startswith("https://"):
                 self.parent().play_youtube(query)
             else:
@@ -155,10 +155,10 @@ class PlayerControlBar(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
         
-        # 1. إعطاء اسم فريد للشريط الرئيسي علشان التنسيق ما يتسربش للعناصر الداخلية
+        # 1. Provide a unique object name for the main bar so styles do not leak to internal elements
         self.setObjectName("MainControlBar")
         
-        # 2. حصر التنسيق على QFrame#MainControlBar فقط
+        # 2. Restrict styling to QFrame#MainControlBar only
         self.setStyleSheet("""
             QFrame#MainControlBar {
                 background-color: #11111b; 
@@ -196,7 +196,7 @@ class PlayerControlBar(QFrame):
             QLabel {
                 color: #cdd6f4; 
                 font-family: 'JetBrains Mono', 'monospace';
-                /* تأكيد إزالة أي حدود أو خلفيات من الـ Label */
+                /* Confirm removal of any borders or backgrounds from the Label */
                 border: none; 
                 background: transparent;
             }
@@ -211,16 +211,16 @@ class PlayerControlBar(QFrame):
         self.play_btn.setFixedWidth(55)
         self.repeat_btn.setFixedWidth(75)
 
-        # منع أزرار التشغيل والتكرار من سرقة التركيز
+        # Prevent playback and repeat buttons from stealing focus
         self.play_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.repeat_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
-        # تم تغيير QSlider التقليدي إلى ClickableSlider المطور
+        # Changed the traditional QSlider to the enhanced ClickableSlider
         self.slider = ClickableSlider(Qt.Orientation.Horizontal)
         self.slider.setCursor(Qt.CursorShape.PointingHandCursor)
         self.slider.setEnabled(False)
 
-        # زيادة العرض لتنسيق المسافات والساعات الجديد
+        # Increased width for the new spacing and hours formatting
         self.time_label = QLabel("00:00 / 00:00")
         self.time_label.setFixedWidth(160)
         self.time_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -229,7 +229,7 @@ class PlayerControlBar(QFrame):
         self.prev_btn = QPushButton("⏮")
         self.next_btn = QPushButton("⏭")
         
-        # منع باقي الأزرار من سرقة التركيز
+        # Prevent the remaining buttons from stealing focus
         for btn in [self.stop_btn, self.prev_btn, self.next_btn]:
             btn.setFixedWidth(55)
             btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -266,7 +266,7 @@ class PlayerControlBar(QFrame):
 # --- New Components for YouTube Download Feature ---
 
 class ToggleSwitch(QPushButton):
-    """زر تشغيل وإيقاف (On/Off) بتصميم احترافي"""
+    """Professional On/Off toggle button"""
     def __init__(self, parent=None):
         super().__init__("OFF", parent)
         self.setCheckable(True)
@@ -290,7 +290,7 @@ class ToggleSwitch(QPushButton):
             """
 
 class DownloadOptionsDialog(QDialog):
-    """نافذة لاختيار الإضافات (الترجمة، الصورة المصغرة، الفصول، الوصف)"""
+    """A window to choose extras (subtitles, thumbnail, chapters, description)"""
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Download Extras")
@@ -305,7 +305,7 @@ class DownloadOptionsDialog(QDialog):
         lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(lbl)
 
-        # دالة مساعدة لإنشاء صف الخيارات
+        # Helper function to create options row
         def create_row(label_text, icon):
             row = QHBoxLayout()
             lbl = QLabel(f"{icon} {label_text}")
@@ -320,7 +320,7 @@ class DownloadOptionsDialog(QDialog):
         sub_row, self.sub_switch = create_row("Download Subtitles & Embed", "📝")
         layout.addLayout(sub_row)
         
-        # حاوية جديدة تضم خانة الإدخال وزر المعلومات
+        # New container comprising the input box and info button
         self.sub_input_container = QWidget()
         sub_layout = QHBoxLayout(self.sub_input_container)
         sub_layout.setContentsMargins(0, 0, 0, 0)
@@ -329,7 +329,7 @@ class DownloadOptionsDialog(QDialog):
         self.sub_lang_input.setText("en,ar") 
         self.sub_lang_input.setStyleSheet("background: #313244; padding: 5px; border-radius: 4px; border: 1px solid #45475a;")
         
-        # تصميم جديد لزر الـ info لتجنب مشاكل الإيموجي في لينكس
+        # New design for the info button to avoid emoji issues in Linux
         self.info_btn = QPushButton(" i ")
         self.info_btn.setFont(QFont("Arial", 12, QFont.Weight.Bold))
         self.info_btn.setFixedSize(30, 30)
@@ -371,7 +371,7 @@ class DownloadOptionsDialog(QDialog):
         layout.addWidget(self.btn)
 
     def show_sub_info(self):
-        """نافذة المعلومات المنبثقة للغات (بالإنجليزية)"""
+        """Pop-up information window for languages (in English)"""
         dlg = QDialog(self)
         dlg.setWindowTitle("Subtitles Info")
         dlg.setFixedSize(400, 380)
@@ -418,7 +418,7 @@ class DownloadOptionsDialog(QDialog):
 
 class DownloadProgressDialog(QDialog):
     """
-    النافذة النهائية التي تعرض التقدم والبيانات بتصميم Catppuccin Mocha.
+    The final window that displays progress and data with Catppuccin Mocha styling.
     """
     def __init__(self, info, format_code, quality_name, dl_options, parent=None):
         super().__init__(parent)
@@ -426,7 +426,7 @@ class DownloadProgressDialog(QDialog):
         self.setFixedWidth(540)
         self.setStyleSheet("background-color: #11111b; color: #cdd6f4;")
         
-        # حفظ ملف المعلومات فوراً إذا تم اختياره
+        # Save info file immediately if selected
         if dl_options.get('info'):
             self.save_info_file(info)
             
@@ -434,7 +434,7 @@ class DownloadProgressDialog(QDialog):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(15)
         
-        # --- 1. قسم التفاصيل ---
+        # --- 1. Info Box ---
         self.info_frame = QFrame()
         self.info_frame.setObjectName("InfoFrame")
         self.info_frame.setStyleSheet("""
@@ -453,23 +453,23 @@ class DownloadProgressDialog(QDialog):
         """)
         info_layout = QVBoxLayout(self.info_frame)
         
-        # استخراج البيانات الإضافية وتجنب الأخطاء في حال كانت القيمة None
+        # Extract additional data and avoid errors if the value is None
         date_raw = info.get('upload_date') or '00000000'
         date_fmt = f"{date_raw[:4]}-{date_raw[4:6]}-{date_raw[6:]}"
         
-        # تفاصيل العرض الموسعة
+        # Extended display details
         self.name_lbl = QLabel(f"<b>📄 Name:</b> {info.get('title', 'Unknown')}")
         self.name_lbl.setWordWrap(True)
         
         self.uploader_lbl = QLabel(f"<b>👤 Channel:</b> {info.get('uploader', 'N/A')}")
         self.date_lbl = QLabel(f"<b>📅 Date:</b> {date_fmt}")
         
-        # تفاعلات الفيديو (Likes/Comments)
+        # Video interactions (Likes/Comments)
         likes = info.get('like_count') or 0
         comments = info.get('comment_count') or 0
         self.stats_lbl = QLabel(f"<b>👍 Likes:</b> {likes:,} | <b>💬 Comments:</b> {comments:,}")
         
-        # تفاصيل الملف التقنية
+        # Technical file details
         ext_val = info.get('ext', 'N/A')
         if format_code:
             if 'ext=mp4' in format_code:
@@ -488,7 +488,7 @@ class DownloadProgressDialog(QDialog):
         
         layout.addWidget(self.info_frame)
 
-        # --- 2. قسم شريط التقدم ---
+        # --- 2. Progress Bar Section ---
         self.pbar = QProgressBar()
         self.pbar.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.pbar.setStyleSheet("""
@@ -510,7 +510,7 @@ class DownloadProgressDialog(QDialog):
         self.pbar.setFormat("Initializing... %p%")
         layout.addWidget(self.pbar)
 
-        # --- 3. قسم الفوتر و زر الإلغاء ---
+        # --- 3. Footer and Cancel Button Section ---
         footer_layout = QHBoxLayout()
         self.status_lbl = QLabel("Downloading...")
         self.status_lbl.setStyleSheet("color: #bac2de; font-size: 12px;")
@@ -533,7 +533,7 @@ class DownloadProgressDialog(QDialog):
         
         layout.addLayout(footer_layout)
 
-        # بدء التحميل الفعلي عبر العامل (Worker)
+        # Start actual download via the worker
         from youtube_feature import DownloadWorker
         self.worker = DownloadWorker(info['webpage_url'], format_code, dl_options)
         self.worker.progress_signal.connect(self.update_progress)
@@ -541,7 +541,7 @@ class DownloadProgressDialog(QDialog):
         self.worker.start()
 
     def request_cancel(self):
-        """نافذة التأكيد بـ 3 خيارات وتُرجع النتيجة (True للإغلاق، False للعودة)"""
+        """Confirmation dialog with 3 choices and returns the result (True to close, False to return)"""
         if not hasattr(self, 'worker') or not self.worker.isRunning():
             return True
 
@@ -551,7 +551,7 @@ class DownloadProgressDialog(QDialog):
         dlg.setStyleSheet("background-color: #1e1e2e; color: #cdd6f4;")
         layout = QVBoxLayout(dlg)
         
-        lbl = QLabel("هل تريد ايقاف التحميل؟\nAre you sure you want to stop the download?")
+        lbl = QLabel("Do you want to stop the download?\nAre you sure you want to stop the download?")
         lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl.setFont(QFont("Arial", 11, QFont.Weight.Bold))
         layout.addWidget(lbl)
@@ -587,7 +587,7 @@ class DownloadProgressDialog(QDialog):
         if result == 1:
             self.status_lbl.setText("Cancelling and Cleaning up...")
             self.worker.abort(delete_parts=True)
-            self.worker.wait() # الانتظار حتى يتوقف الخيط
+            self.worker.wait() # Wait until the thread finishes
             return True
         elif result == 2:
             self.status_lbl.setText("Cancelling...")
@@ -598,12 +598,12 @@ class DownloadProgressDialog(QDialog):
         return False
 
     def on_cancel_btn_clicked(self):
-        """يُستدعى عند الضغط على الزر الأحمر Cancel"""
+        """Called when clicking the red Cancel button"""
         if self.request_cancel():
-            self.accept() # إغلاق النافذة
+            self.accept() # Close the window
 
     def reject(self):
-        """اعتراض زر Esc وأي محاولة إغلاق برمجية لعدم إخفاء النافذة والتحميل مستمر"""
+        """Intercept Esc key and any programmatic close attempt to prevent hiding the window while download is ongoing"""
         if hasattr(self, 'worker') and self.worker.isRunning():
             if self.request_cancel():
                 super().reject()
@@ -611,7 +611,7 @@ class DownloadProgressDialog(QDialog):
             super().reject()
 
     def closeEvent(self, event):
-        """يُستدعى عند الضغط على زر إغلاق النافذة (X) من الشريط العلوي"""
+        """Called when clicking the window close button (X) from the top bar"""
         if hasattr(self, 'worker') and self.worker.isRunning():
             if self.request_cancel():
                 event.accept()
@@ -622,18 +622,18 @@ class DownloadProgressDialog(QDialog):
 
     def save_info_file(self, info):
         try:
-            # جلب مسار التحميل المخصص من الكاش
+            # Fetch custom download path from cache
             path_file = Path.home() / ".cache" / "hardplayer" / "download_path.txt"
-            target_dir = os.getcwd() # الافتراضي هو المجلد الحالي
+            target_dir = os.getcwd() # Default is the current directory
             
             if path_file.exists():
                 custom_path = path_file.read_text(encoding="utf-8").strip()
                 if custom_path and os.path.exists(custom_path):
-                    target_dir = custom_path # تحديث المجلد للمسار المخصص
+                    target_dir = custom_path # Update directory to the custom path
 
             title = info.get('title', 'video')
             clean_title = "".join([c for c in title if c.isalpha() or c.isdigit() or c in ' -_']).rstrip()
-            # دمج المجلد المختار مع اسم الملف
+            # Combine the selected folder with the filename
             filename = os.path.join(target_dir, f"{clean_title}_info.txt")
             
             with open(filename, 'w', encoding='utf-8') as f:
@@ -645,7 +645,7 @@ class DownloadProgressDialog(QDialog):
                 f.write(f"Likes: {info.get('like_count', 'N/A')}\n\n")
                 f.write("=========================\n")
                 f.write(f"Description:\n{info.get('description', '')}\n")
-            print(f"[*] 📄 Info file saved to: {filename}") # طباعة المسار للتأكد
+            print(f"[*] 📄 Info file saved to: {filename}") # Print the path for verification
         except Exception as e:
             print(f"[*] ⚠️ Failed to save info file: {e}")
 
@@ -664,7 +664,7 @@ class DownloadProgressDialog(QDialog):
             curr_stream = d.get('current_stream', 'Video')
             total_str = d.get('_total_bytes_str', '0')
             
-            # حساب الكمية المحملة فعلياً (كم ميجا نزلت)
+            # Calculate the amount actually downloaded (how many megabytes downloaded)
             downloaded_str = "Unknown"
             m = re.match(r"([0-9\.]+)([a-zA-Z]+)", total_str)
             if m:
@@ -676,7 +676,7 @@ class DownloadProgressDialog(QDialog):
                 except:
                     pass
             
-            # عرض الحجم بالتفصيل
+            # Display the size in detail
             size_text = (f"<b>📦 Video Size:</b> {v_size} | <b>🎵 Audio Size:</b> {a_size}<br>"
                          f"<b>⬇️ Downloading ({curr_stream}):</b> {downloaded_str} / {total_str}")
             self.size_lbl.setText(size_text)
@@ -705,12 +705,12 @@ class DownloadProgressDialog(QDialog):
         self.status_lbl.setText("Finished Successfully!")
         self.status_lbl.setStyleSheet("color: #a6e3a1; font-weight: bold;")
         self.setWindowTitle("HardPlayer - Download Complete! ✅")
-        self.cancel_btn.hide() # إخفاء زر الإلغاء بعد الانتهاء
+        self.cancel_btn.hide() # Hide the cancel button after completion
 
 
 class QualitySelectorDialog(QDialog):
     """
-    نافذة اختيار الجودة.
+    Quality selection window.
     """
     def __init__(self, info, parent=None):
         super().__init__(parent)
@@ -853,7 +853,7 @@ class QualitySelectorDialog(QDialog):
 
 class YouTubeURLDialog(QDialog):
     """
-    نافذة لطلب رابط اليوتيوب المراد تحميله.
+    A dialog to request the YouTube URL to be downloaded.
     """
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -927,7 +927,7 @@ class YouTubeURLDialog(QDialog):
 
         selected_videos = videos_list
         if mode_dlg.mode == "select":
-            # 2. نافذة التحديد
+            # 2. Selection window
             select_dlg = PlaylistSelectionDialog(videos_list, self)
             if select_dlg.exec() == QDialog.DialogCode.Accepted:
                 selected_videos = select_dlg.get_selected_videos()
@@ -939,23 +939,23 @@ class YouTubeURLDialog(QDialog):
         if not selected_videos:
             self.next_btn.setEnabled(True)
             self.lbl.setText("Enter YouTube URL to Download:")
-            return
+                return
 
         
         self.lbl.setText("Getting quality options... ⏳")
         first_url = selected_videos[0]['url']
         
         def on_first_video_info(info):
-            self.accept() # إغلاق نافذة الـ URL
-            # إظهار نافذة الجودة
+            self.accept() # Close URL window
+            # Show quality window
             selector = QualitySelectorDialog(info, self.parent())
             
-            # اختطاف وظيفة start_dl لنوجهها للقائمة بدل فيديو فردي
+            # Hijack start_dl function to direct it to the playlist instead of an individual video
             def custom_start_dl(code, name):
                 options_dlg = DownloadOptionsDialog(selector)
                 if options_dlg.exec() == QDialog.DialogCode.Accepted:
                     dl_options = options_dlg.get_options()
-                    # فتح نافذة القوائم النهائية
+                    # Open final playlist windows
                     pl_dlg = PlaylistProgressDialog(selected_videos, code, name, dl_options, selector.parent())
                     pl_dlg.show()
                     selector.close()
@@ -971,3 +971,4 @@ class YouTubeURLDialog(QDialog):
         selector = QualitySelectorDialog(info, self.parent())
         selector.show()
         self.accept()
+        
