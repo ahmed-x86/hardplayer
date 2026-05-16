@@ -6,32 +6,32 @@ from PyQt6.QtWidgets import QMenuBar, QMenu, QPushButton, QFileDialog
 from PyQt6.QtGui import QActionGroup, QAction
 from PyQt6.QtCore import Qt, pyqtSignal
 
-# استيراد خريطة الأجهزة من ملف الـ hardware decoding الخاص بك
+# Import the hardware map from your hardware decoding file
 from hw_decoding import DEVICE_MAP
-# استيراد نافذة إدخال الرابط من المكونات
+# Import the URL entry dialog from components
 from ui_components import YouTubeURLDialog
 
-# --- استيراد مدير قائمة التحويل الجديد ---
+# --- Import the new convert menu manager ---
 from top_menu_convert import ConvertMenuManager
 
 class TopMenuBar(QMenuBar):
     """
-    كلاس مخصص للقائمة العلوية، يدير إعدادات الـ Hardware Decoding
-    وزر التحكم في قائمة التشغيل (Playlist) وقائمة التحويل.
+    Custom top menu bar class, handles Hardware Decoding settings,
+    playlist control button, and the convert menu.
     """
-    # Signals للتواصل مع النافذة الرئيسية
-    hw_changed = pyqtSignal(str) # ترسل النوع الجديد عند التغيير
-    playlist_toggled = pyqtSignal() # ترسل إشارة عند الضغط على زر القائمة
+    # Signals for communicating with the main window
+    hw_changed = pyqtSignal(str) # Emits the new type upon alteration
+    playlist_toggled = pyqtSignal() # Emits a signal when clicking the playlist button
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.main_window = parent # حفظ مرجع للنافذة الرئيسية
+        self.main_window = parent # Save reference to the main window
         self.init_style()
         self.setup_menus()
         self.setup_playlist_button()
 
     def init_style(self):
-        """تطبيق ثيم Catppuccin Mocha على القائمة"""
+        """Apply Catppuccin Mocha theme to the menu"""
         self.setStyleSheet("""
             QMenuBar { 
                 background-color: #11111b; 
@@ -62,13 +62,13 @@ class TopMenuBar(QMenuBar):
         """)
 
     def setup_menus(self):
-        # --- قائمة Hardware ---
+        # --- Hardware Menu ---
         hw_menu = self.addMenu("Hardware ⚙️")
 
-        # إنشاء قائمة فرعية (Sub-menu) لتنظيم الخيارات
+        # Create a sub-menu to organize options
         default_hw_menu = hw_menu.addMenu("Default Backend 🖥️")
 
-        # مجموعة أكشن حصرية (Radio Button behavior)
+        # Exclusive action group (Radio Button behavior)
         self.hw_action_group = QActionGroup(self)
         self.hw_action_group.setExclusive(True)
 
@@ -82,21 +82,21 @@ class TopMenuBar(QMenuBar):
             if saved_hwdec == hw_arg:
                 action.setChecked(True)
 
-            # ربط الأكشن بالدالة البرمجية
+            # Bind the action to the functional method
             action.triggered.connect(lambda checked, h=hw_arg: self.save_default_hwdec(h))
             
         default_hw_menu.addSeparator()
         reset_action = default_hw_menu.addAction("Reset Default 🔄")
         reset_action.triggered.connect(self.reset_default_hwdec)
 
-        # --- قائمة YouTube ---
+        # --- YouTube Menu ---
         youtube_menu = self.addMenu("YouTube 📺")
         download_action = youtube_menu.addAction("Download YouTube Video 📥")
         download_action.triggered.connect(self.show_youtube_dialog)
 
         youtube_menu.addSeparator()
 
-        # قائمة فرعية لتحديد مجلد التحميل
+        # Sub-menu to specify the download folder
         loc_menu = youtube_menu.addMenu("Download Location 📁")
         set_loc_action = loc_menu.addAction("Set Download Folder 📂")
         set_loc_action.triggered.connect(self.select_download_directory)
@@ -105,10 +105,10 @@ class TopMenuBar(QMenuBar):
 
         youtube_menu.addSeparator()
 
-        # إنشاء قائمة فرعية (Sub-menu) للصيغ
+        # Create a sub-menu for extensions
         ext_menu = youtube_menu.addMenu("Default Extension 🗂️")
 
-        # مجموعة أكشن للصيغ داخل القائمة الفرعية
+        # Action group for extensions inside the sub-menu
         self.ext_action_group = QActionGroup(self)
         self.ext_action_group.setExclusive(True)
 
@@ -129,12 +129,12 @@ class TopMenuBar(QMenuBar):
         reset_ext_action = ext_menu.addAction("Reset Extension 🔄")
         reset_ext_action.triggered.connect(self.reset_yt_ext)
 
-        # --- قائمة التحويل (Convert) ---
-        # نقوم بتمرير النافذة الرئيسية (main_window) لمدير التحويل لكي يبني قائمته بداخلها
+        # --- Convert Menu ---
+        # We pass the main window (main_window) to the convert manager so it can build its menu inside it
         self.convert_manager = ConvertMenuManager(self.main_window)
 
     def setup_playlist_button(self):
-        """إضافة زر الـ Playlist في أقصى اليمين"""
+        """Add the Playlist button at the far right"""
         self.playlist_btn = QPushButton("📜")
         self.playlist_btn.setFixedWidth(50)
         self.playlist_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -150,15 +150,15 @@ class TopMenuBar(QMenuBar):
         """)
         self.playlist_btn.clicked.connect(self.playlist_toggled.emit)
         
-        # وضع الزر في الزاوية اليمنى العلوية من الـ MenuBar
+        # Place the button in the top right corner of the MenuBar
         self.setCornerWidget(self.playlist_btn, Qt.Corner.TopRightCorner)
 
     def show_youtube_dialog(self):
-        """فتح نافذة إدخال رابط اليوتيوب"""
+        """Open the YouTube URL entry dialog"""
         self.yt_dialog = YouTubeURLDialog(self.main_window)
         self.yt_dialog.show()
 
-    # --- منطق الـ Cache المستخلص ---
+    # --- Extracted Cache Logic ---
     
     def save_default_hwdec(self, hw_arg):
         cache_dir = Path.home() / ".cache" / "hardplayer"
@@ -180,9 +180,9 @@ class TopMenuBar(QMenuBar):
             checked_action.setChecked(False)
             self.hw_action_group.setExclusive(True)
         
-        self.hw_changed.emit("no") # العودة للحالة الافتراضية
+        self.hw_changed.emit("no") # Return to default state
 
-    # --- منطق الـ Cache لصيغة اليوتيوب الافتراضية ---
+    # --- Cache Logic for Default YouTube Extension ---
 
     def save_yt_ext(self, ext):
         cache_dir = Path.home() / ".cache" / "hardplayer"
@@ -215,7 +215,7 @@ class TopMenuBar(QMenuBar):
             return hw_file.read_text(encoding="utf-8").strip()
         return None
 
-    # --- منطق الـ Cache لمسار التحميل ---
+    # --- Cache Logic for Download Path ---
 
     def select_download_directory(self):
         directory = QFileDialog.getExistingDirectory(self, "Select Download Folder")
