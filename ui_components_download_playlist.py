@@ -12,7 +12,7 @@ from ui_components import ToggleSwitch, DownloadOptionsDialog
 from youtube_feature import DownloadWorker, YTInfoFetcher
 
 # ==========================================
-# 1. Worker لجلب روابط القائمة بسرعة
+# 1. Worker to fetch playlist links quickly
 # ==========================================
 class PlaylistFetchWorker(QThread):
     finished = pyqtSignal(list)
@@ -51,7 +51,7 @@ class PlaylistFetchWorker(QThread):
             self.error.emit(str(e))
 
 # ==========================================
-# 2. نافذة اختيار وضع التحميل (الكل أو تحديد)
+# 2. Download mode selection dialog (All or Select)
 # ==========================================
 class PlaylistModeDialog(QDialog):
     def __init__(self, parent=None):
@@ -89,7 +89,7 @@ class PlaylistModeDialog(QDialog):
         self.accept()
 
 # ==========================================
-# 3. نافذة تحديد الفيديوهات
+# 3. Video selection dialog
 # ==========================================
 class PlaylistSelectionDialog(QDialog):
     def __init__(self, videos, parent=None):
@@ -164,7 +164,7 @@ class PlaylistSelectionDialog(QDialog):
 
 
 # ==========================================
-# 4. نافذة إدارة طابور القائمة (Tracker) 
+# 4. Playlist queue management window (Tracker)
 # ==========================================
 class PlaylistProgressDialog(QDialog):
     def __init__(self, video_list, format_code, quality_name, dl_options, parent=None):
@@ -190,7 +190,7 @@ class PlaylistProgressDialog(QDialog):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(15)
         
-        # --- 1. صندوق المعلومات ---
+        # --- 1. Info Box ---
         self.info_frame = QFrame()
         self.info_frame.setObjectName("InfoFrame")
         self.info_frame.setStyleSheet("""
@@ -226,7 +226,7 @@ class PlaylistProgressDialog(QDialog):
         
         layout.addWidget(self.info_frame)
 
-        # --- 2. شريط التقدم الشامل ---
+        # --- 2. Overall Progress Bar ---
         self.overall_pbar = QProgressBar()
         self.overall_pbar.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.overall_pbar.setStyleSheet("""
@@ -249,7 +249,7 @@ class PlaylistProgressDialog(QDialog):
         self.overall_pbar.setFormat("Overall Progress: 0%")
         layout.addWidget(self.overall_pbar)
 
-        # --- 3. الفوتر وأزرار التحكم ---
+        # --- 3. Footer and Control Buttons ---
         footer_layout = QHBoxLayout()
         
         self.playlist_status_lbl = QLabel(f"Video 1 of {self.total_videos}")
