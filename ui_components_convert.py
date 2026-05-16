@@ -19,7 +19,7 @@ class ConversionDialogUI(QDialog):
         self.setStyleSheet("background-color: #11111b; color: #cdd6f4;")
 
         self.is_processing = False
-        self.input_file = ""   # <-- (إصلاح خطأ الانهيار Core Dumped)
+        self.input_file = ""   # <-- (Fix Core Dumped crash bug)
         self.output_file = ""
         self.total_duration = 0.0 
         self.action_buttons = {} 
@@ -128,7 +128,7 @@ class ConversionDialogUI(QDialog):
             fmt = data.get('format', {})
             streams = data.get('streams', [])
             
-            # --- إصلاح مشكلة الـ MKV: البحث عن المدة في كل مكان ---
+            # --- Fix MKV issue: Search for duration everywhere ---
             duration = fmt.get('duration')
             if not duration and streams:
                 for s in streams:
@@ -174,7 +174,7 @@ class ConversionDialogUI(QDialog):
         dlg.setStyleSheet("background-color: #1e1e2e; color: #cdd6f4;")
         layout = QVBoxLayout(dlg)
         
-        lbl = QLabel("هل تريد ايقاف التحويل؟\nDo you want to cancel processing?")
+        lbl = QLabel("Do you want to stop the conversion?\nDo you want to cancel processing?")
         lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl.setFont(QFont("Arial", 11, QFont.Weight.Bold))
         layout.addWidget(lbl)
