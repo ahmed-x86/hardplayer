@@ -46,15 +46,15 @@ class PlayerControlBar(QFrame):
     next_clicked = pyqtSignal()
     prev_clicked = pyqtSignal()
     seek_requested = pyqtSignal(int)
-    subtitle_toggled = pyqtSignal() # إشارة زر الترجمة 
+    subtitle_toggled = pyqtSignal() # Subtitle button signal
     
-    # إشارة التكرار المحدثة لدعم MPRIS بثلاث حالات: None, Playlist, Track
+    # Updated repeat signal to support MPRIS with three states: None, Playlist, Track
     repeat_mode_changed = pyqtSignal(str) 
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.current_loop_status = "None" # الحالة الافتراضية للتكرار
-        self.show_remaining_time = False # إضافة: حالة عرض الوقت (منقضي أم متبقي)
+        self.current_loop_status = "None" # Default repeat status
+        self.show_remaining_time = False # Addition: Time display mode (elapsed or remaining)
         self.init_ui()
 
     def init_ui(self):
@@ -103,7 +103,7 @@ class PlayerControlBar(QFrame):
             }
         """)
         
-        # تقليل الارتفاع إلى 50 كما طلبت
+        # Reduce height to 50 as requested
         self.setFixedHeight(50)
         
         layout = QHBoxLayout(self)
@@ -129,7 +129,7 @@ class PlayerControlBar(QFrame):
 
         # Connect signals
         self.play_btn.clicked.connect(self.play_toggled.emit)
-        self.repeat_btn.clicked.connect(self.cycle_repeat_mode) # استخدام دالة التبديل الجديدة
+        self.repeat_btn.clicked.connect(self.cycle_repeat_mode) # Use the new cycle function
         self.subtitles_btn.clicked.connect(self.subtitle_toggled.emit) 
 
         # Restored the custom ClickableSlider
@@ -138,14 +138,14 @@ class PlayerControlBar(QFrame):
         self.slider.setEnabled(False)
         self.slider.sliderMoved.connect(self.seek_requested.emit)
 
-        # تم التعديل هنا لدعم النقر على الوقت
+        # Modified here to support clicking on the time
         self.time_label = ClickableLabel("00:00 / 00:00")
-        self.time_label.setFixedWidth(150) # زيادة العرض قليلا لعلامة السالب
+        self.time_label.setFixedWidth(150) # Increase width slightly for the negative sign
         self.time_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.time_label.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.time_label.clicked.connect(self.toggle_time_display)
 
-        # أزرار التحكم بالمسار
+        # Track control buttons
         self.stop_btn = QPushButton("⏹")
         self.prev_btn = QPushButton("⏮")
         self.next_btn = QPushButton("⏭")
@@ -161,7 +161,7 @@ class PlayerControlBar(QFrame):
             # Restored NoFocus
             btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
-        # ترتيب العناصر في الـ Layout
+        # Arrange elements in the layout
         layout.addWidget(self.play_btn)
         layout.addWidget(self.repeat_btn)
         layout.addWidget(self.slider, 1)
@@ -171,15 +171,15 @@ class PlayerControlBar(QFrame):
         layout.addWidget(self.stop_btn)      
         layout.addWidget(self.next_btn)      
 
-        # تهيئة شكل زر التكرار الأولي
+        # Initialize the initial repeat button appearance
         self.set_repeat_status(self.current_loop_status)
 
     def toggle_time_display(self):
-        """التبديل بين عرض الوقت المنقضي والوقت المتبقي"""
+        """Toggle between showing elapsed time and remaining time."""
         self.show_remaining_time = not self.show_remaining_time
 
     def set_subtitle_status(self, is_active):
-        """تحديث لون زر الترجمة بناءً على حالتها"""
+        """Update subtitle button color based on its state."""
         if is_active:
             self.subtitles_btn.setStyleSheet("""
                 QPushButton {
@@ -190,11 +190,11 @@ class PlayerControlBar(QFrame):
                 }
             """)
         else:
-            # مسح الستايل المخصص ليعود للشكل الافتراضي
+            # Clear custom style to return to default appearance
             self.subtitles_btn.setStyleSheet("")
 
     def cycle_repeat_mode(self):
-        """التبديل بين حالات التكرار الثلاثة وإرسال الإشارة"""
+        """Cycle through the three repeat modes and emit the signal."""
         if self.current_loop_status == "None":
             new_status = "Playlist"
         elif self.current_loop_status == "Playlist":
@@ -207,8 +207,8 @@ class PlayerControlBar(QFrame):
 
     def set_repeat_status(self, status: str):
         """
-        تحديث شكل زر التكرار ليتطابق مع حالة MPRIS.
-        status: "None", "Playlist", أو "Track"
+        Update repeat button appearance to match the MPRIS state.
+        status: "None", "Playlist", or "Track"
         """
         self.current_loop_status = status
         
