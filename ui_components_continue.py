@@ -10,8 +10,8 @@ from config import MAUVE
 
 class ResumeManager:
     """
-    مدير لحفظ واسترجاع أوقات توقف الفيديوهات.
-    يحفظ البيانات في ملف JSON داخل مسار إعدادات المستخدم.
+    Manager to save and retrieve video pause times.
+    Saves data in a JSON file inside the user configuration path.
     """
     def __init__(self):
         self.config_dir = os.path.expanduser("~/.config/hardplayer")
@@ -32,12 +32,12 @@ class ResumeManager:
         if not filepath or time_pos is None:
             return
             
-        # لا تقم بالحفظ إذا كان متبقي أقل من 5 ثواني على نهاية الفيديو
+        # Do not save if there are less than 5 seconds left until the end of the video
         if duration and (duration - time_pos) < 5:
             self.clear_position(filepath)
             return
             
-        # لا تقم بالحفظ إذا لم يتخطى المستخدم أول 5 ثواني
+        # Do not save if the user hasn't passed the first 5 seconds
         if time_pos < 5:
             return
 
@@ -57,17 +57,17 @@ class ResumeManager:
 
 class ContinueDialog(QDialog):
     """
-    نافذة الاستئناف. لا يمكن إغلاقها إلا باختيار أحد الزرين.
+    The resume dialog. It cannot be closed except by choosing one of the two buttons.
     """
     def __init__(self, parent=None, saved_time=0.0):
         super().__init__(parent)
         self.saved_time = saved_time
-        self.choice = "restart"  # القيمة الافتراضية
+        self.choice = "restart"  # Default value
         self.setup_ui()
 
     def setup_ui(self):
-        # 1. إعدادات النافذة لمنع الإغلاق
-        # إزالة شريط العنوان وأزرار (X, Maximize, Minimize)
+        # 1. Window settings to prevent closing
+        # Remove title bar and buttons (X, Maximize, Minimize)
         self.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.CustomizeWindowHint | Qt.WindowType.WindowTitleHint)
         self.setModal(True)
         self.setWindowTitle("Resume Playback")
@@ -78,21 +78,21 @@ class ContinueDialog(QDialog):
         layout.setSpacing(20)
         layout.setContentsMargins(20, 20, 20, 20)
 
-        # تحويل الثواني إلى صيغة MM:SS أو HH:MM:SS
+        # Convert seconds to MM:SS or HH:MM:SS format
         time_str = self._format_time(self.saved_time)
 
-        # 2. النصوص
+        # 2. Texts
         lbl_msg = QLabel("Video was closed previously.\nWhere do you want to start?")
         lbl_msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl_msg.setFont(QFont("Arial", 12, QFont.Weight.Bold))
         layout.addWidget(lbl_msg)
 
-        # 3. الأزرار
+        # 3. Buttons
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(15)
 
         btn_continue = QPushButton(f"Continue ({time_str})")
-        # تمييز زر المتابعة بلون الـ Mauve بعد التعديل الصحيح
+        # Highlight the continue button with Mauve color after correct modification
         btn_continue.setStyleSheet(f"""
             QPushButton {{
                 background-color: {MAUVE};
@@ -131,11 +131,11 @@ class ContinueDialog(QDialog):
         self.accept()
 
     def closeEvent(self, event):
-        """تجاهل حدث الإغلاق (Alt+F4 أو أي إشارة إغلاق داخلية)"""
+        """Ignore the close event (Alt+F4 or any internal close signal)"""
         event.ignore()
 
     def keyPressEvent(self, event):
-        """تجاهل ضغطة زر Esc"""
+        """Ignore the Esc key press"""
         if event.key() == Qt.Key.Key_Escape:
             event.ignore()
         else:
