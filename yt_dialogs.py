@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
 from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtGui import QFont, QPixmap
 
-# --- استدعاء الـ Backend من الملفات المنفصلة ---
+# --- Import Backend from separate files ---
 from yt_url_parser import clean_youtube_url
 from yt_assets_fetcher import ImageFetcher
 from yt_info_fetcher import YTInfoFetcher
@@ -239,7 +239,7 @@ class YouTubeSearchDialog(QDialog):
 
         self.fetchers = []
         
-        # ربط واجهة البحث بمحرك البحث الجديد YTSearchEngine
+        # Bind search interface to the new YTSearchEngine search engine
         self.search_engine = YTSearchEngine(self.query)
         self.search_engine.results_fetched.connect(self.on_results_fetched)
         self.search_engine.error_occurred.connect(self.on_search_error)
@@ -342,8 +342,8 @@ class YouTubeSearchDialog(QDialog):
         
         card_layout.addLayout(info_layout)
         
-        btn_layout = QVBoxLayout()
-        btn_layout.setSpacing(5)
+        for_layout = QVBoxLayout()
+        for_layout.setSpacing(5)
         
         play_btn = QPushButton("▶ Play")
         play_btn.setFixedSize(110, 30)
@@ -363,12 +363,12 @@ class YouTubeSearchDialog(QDialog):
         dl_btn.setStyleSheet("QPushButton { background-color: #cba6f7; color: #11111b; font-weight: bold; border-radius: 5px; } QPushButton:hover { background-color: #b4befe; } QPushButton:disabled { background-color: #585b70; color: #a6adc8; }")
         dl_btn.clicked.connect(lambda checked, url=link, p=play_btn, c=copy_btn, d=dl_btn: self.start_download_flow(url, p, c, d))
         
-        btn_layout.addWidget(play_btn)
-        btn_layout.addWidget(copy_btn)
-        btn_layout.addWidget(dl_btn)
-        btn_layout.addStretch()
+        for_layout.addWidget(play_btn)
+        for_layout.addWidget(copy_btn)
+        for_layout.addWidget(dl_btn)
+        for_layout.addStretch()
         
-        card_layout.addLayout(btn_layout)
+        card_layout.addLayout(for_layout)
         self.scroll_layout.addWidget(card)
 
     def update_image(self, label, data, w, h):
@@ -405,7 +405,7 @@ class YouTubeSearchDialog(QDialog):
         self.fetcher.start()
 
     def on_info_fetched(self, info):
-        # لمس الواجهات الخارجية دون تعديلها، فقط استدعاء ما نحتاجه
+        # Access external interfaces without modifying them, just call what we need
         from ui_components import QualitySelectorDialog 
         
         self.accept() 
