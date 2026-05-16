@@ -15,8 +15,8 @@ from get_youtube_thumbnail import get_youtube_thumbnail
 
 class AsyncYouTubeDataFetcher(QThread):
     """
-    خيط (Thread) لجلب معلومات يوتيوب والصورة المصغرة بالخلفية 
-    دون تجميد واجهة المستخدم. يعتمد على oEmbed لسرعته الخارقة.
+    Thread to fetch YouTube information and thumbnail in the background 
+    without freezing the UI. Relies on oEmbed for its blazing speed.
     """
     data_fetched = pyqtSignal(str, str, bytes) # Title, Channel Name, Image Bytes
 
@@ -27,13 +27,13 @@ class AsyncYouTubeDataFetcher(QThread):
     def run(self):
         title = "YouTube Video"
         uploader = ""
-        # استخدام دالتك كمسار احتياطي/أساسي للصورة
+        # Use your function as a fallback/primary path for the image
         thumb_url = get_youtube_thumbnail(self.url)
         image_bytes = b""
 
-        # 1. جلب اسم الفيديو والقناة باستخدام YouTube oEmbed API السريع جداً
+        # 1. Fetch the video name and channel using the ultra-fast YouTube oEmbed API
         try:
-            # تنظيف الرابط من إضافات القائمة لضمان دقة API
+            # Clean the link from playlist additions to ensure API accuracy
             clean_url = self.url.split('&list=')[0].split('&index=')[0]
             oembed_url = f"https://www.youtube.com/oembed?url={clean_url}&format=json"
             req = urllib.request.Request(oembed_url, headers={'User-Agent': 'Mozilla/5.0'})
@@ -41,13 +41,13 @@ class AsyncYouTubeDataFetcher(QThread):
                 data = json.loads(response.read().decode())
                 title = data.get('title', title)
                 uploader = data.get('author_name', uploader)
-                # استخدام صورة oEmbed إذا كانت متوفرة لأنها دقيقة
+                # Use the oEmbed image if available because it is accurate
                 thumb_url = data.get('thumbnail_url', thumb_url)
         except Exception:
-            # إذا فشل الاتصال، اجعل العنوان "YouTube Video"
+            # If the connection fails, make the title "YouTube Video"
             title = "YouTube Video"
 
-        # 2. تحميل بايتات الصورة المصغرة (Thumbnail Bytes)
+        # 2. Download the thumbnail bytes (Thumbnail Bytes)
         try:
             if thumb_url:
                 req_img = urllib.request.Request(thumb_url, headers={'User-Agent': 'Mozilla/5.0'})
@@ -56,7 +56,7 @@ class AsyncYouTubeDataFetcher(QThread):
         except Exception:
             pass
 
-        # إرسال البيانات للواجهة لتحديث الزر
+        # Send the data to the interface to update the button
         self.data_fetched.emit(title, uploader, image_bytes)
 
 
@@ -72,7 +72,7 @@ class PlaylistPanel(QFrame):
         self.playlist = []
         self.loaded_items_count = 0
         self.load_more_btn = None
-        self.yt_fetchers = [] # تخزين خيوط الجلب لمنع إغلاقها مبكراً
+        self.yt_fetchers = [] # Store the fetch threads to prevent them from closing early
         
         self.init_ui()
 
@@ -117,9 +117,9 @@ class PlaylistPanel(QFrame):
     def set_playlist_data(self, files_list):
         """Update the playlist data and reset the UI."""
         self.playlist = files_list
-        self.yt_fetchers = [] # تنظيف الخيوط القديمة
+        self.yt_fetchers = [] # Clean up old threads
         
-        # تعديل العنوان ديناميكياً
+        # Dynamically modify the title
         if files_list and files_list[0].startswith("http"):
             self.title_lbl.setText("YouTube Playlist")
         else:
@@ -151,7 +151,7 @@ class PlaylistPanel(QFrame):
         batch = self.playlist[start_index:end_index]
             
         for i, path in enumerate(batch):
-            # التحقق مما إذا كان هذا هو المقطع الأخير في القائمة كلها
+            # Check if this is the last clip in the entire playlist
             global_index = start_index + i
             is_last_video = (global_index == len(self.playlist) - 1)
             
@@ -196,19 +196,19 @@ class PlaylistPanel(QFrame):
         thumb_label.setStyleSheet("background-color: #11111b; color: #fab387; border-radius: 4px;")
         
         name_label = QLabel()
-        # استخدام Rich Text لدعم تلوين النص لاحقاً إذا لزم الأمر
+        # Use Rich Text to support text coloring later if needed
         name_label.setTextFormat(Qt.TextFormat.RichText)
         name_label.setStyleSheet("color: #cdd6f4; font-size: 11px; background: transparent;")
         name_label.setWordWrap(True)
 
         if path.startswith("http"):
-            # --- معالجة روابط يوتيوب ديناميكياً ---
+            # --- Process YouTube links dynamically ---
             thumb_label.setText("⏳")
             name_label.setText("Fetching data...")
             
-            # بدء الجلب في الخلفية لتحديث الزر
+            # Start fetching in the background to update the button
             fetcher = AsyncYouTubeDataFetcher(path)
-            # نمرر حالة (الفيديو الأخير) للدالة عبر lambda
+            # We pass the (last video) state to the function via lambda
             fetcher.data_fetched.connect(
                 lambda t, u, b, nl=name_label, tl=thumb_label, last=is_last_video: 
                 self.update_yt_item(nl, tl, t, u, b, last)
@@ -216,7 +216,7 @@ class PlaylistPanel(QFrame):
             self.yt_fetchers.append(fetcher)
             fetcher.start()
         else:
-            # --- معالجة الملفات المحلية ---
+            # --- Process local files ---
             thumb_path = get_local_thumbnail(path)
             if thumb_path and os.path.exists(thumb_path):
                 pix = QPixmap(thumb_path).scaled(80, 45, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
@@ -232,9 +232,9 @@ class PlaylistPanel(QFrame):
             
             final_text = f"{line1}<br>{line2}" if line2 else line1
             
-            # إضافة علامة الفيديو الأخير إذا كان هو الأخير
+            # Add the last video mark if it is the last one
             if is_last_video:
-                final_text += "<br><span style='color:#f38ba8; font-weight:bold;'>🔚 المقطع الأخير</span>"
+                final_text += "<br><span style='color:#f38ba8; font-weight:bold;'>🔚 Last Clip</span>"
                 
             name_label.setText(final_text)
         
@@ -247,25 +247,25 @@ class PlaylistPanel(QFrame):
         return item_frame
 
     def update_yt_item(self, name_label, thumb_label, title, uploader, image_bytes, is_last_video):
-        """تحديث بيانات اليوتيوب في الزر بعد انتهاء الجلب من الخلفية"""
-        # قص العنوان الطويل
+        """Update YouTube data in the button after background fetching is complete"""
+        # Trim long title
         words = title.split()
         line1 = " ".join(words[:4])
         line2 = " ".join(words[4:7]) + "..." if len(words) > 4 else ""
         
         display_text = f"{line1}<br>{line2}" if line2 else line1
         
-        # إضافة اسم القناة بالأسفل
+        # Add the channel name at the bottom
         if uploader:
             display_text += f"<br><span style='color:#a6adc8;'>👤 {uploader[:15]}</span>"
             
-        # إضافة علامة الفيديو الأخير
+        # Add the last video mark
         if is_last_video:
-            display_text += "<br><span style='color:#f38ba8; font-weight:bold;'>🔚 المقطع الأخير</span>"
+            display_text += "<br><span style='color:#f38ba8; font-weight:bold;'>🔚 Last Clip</span>"
             
         name_label.setText(display_text)
         
-        # تطبيق الصورة المصغرة
+        # Apply the thumbnail
         if image_bytes:
             pix = QPixmap()
             if pix.loadFromData(image_bytes):
