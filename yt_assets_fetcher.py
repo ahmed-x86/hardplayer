@@ -17,4 +17,4 @@ class ImageFetcher(QThread):
             data = urllib.request.urlopen(req).read()
             self.image_fetched.emit(self.identifier, data)
         except Exception:
-            pass # نتجاهل الخطأ إذا لم تتوفر الصورة
+            pass 
