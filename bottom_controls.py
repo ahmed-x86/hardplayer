@@ -3,6 +3,7 @@
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QPushButton, QSlider, QLabel
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QCursor
+from subtitle_button import SubtitleButton
 
 class ClickableSlider(QSlider):
     """
@@ -112,20 +113,17 @@ class PlayerControlBar(QFrame):
 
         self.play_btn = QPushButton("▶")
         self.repeat_btn = QPushButton("🔁 ✖") 
-        self.subtitles_btn = QPushButton("💬 CC") 
+        self.subtitles_btn = SubtitleButton() 
         
         self.play_btn.setFixedWidth(50)
         self.repeat_btn.setFixedWidth(65)
-        self.subtitles_btn.setFixedWidth(60)
         
         self.play_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.repeat_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        self.subtitles_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
 
         # Restored NoFocus to prevent seeking glitches
         self.play_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.repeat_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.subtitles_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
         # Connect signals
         self.play_btn.clicked.connect(self.play_toggled.emit)
@@ -180,18 +178,7 @@ class PlayerControlBar(QFrame):
 
     def set_subtitle_status(self, is_active):
         """Update subtitle button color based on its state."""
-        if is_active:
-            self.subtitles_btn.setStyleSheet("""
-                QPushButton {
-                    color: #a6e3a1; 
-                    border: 1px solid #a6e3a1; 
-                    background-color: #313244;
-                    font-weight: bold;
-                }
-            """)
-        else:
-            # Clear custom style to return to default appearance
-            self.subtitles_btn.setStyleSheet("")
+        self.subtitles_btn.set_active_status(is_active)
 
     def cycle_repeat_mode(self):
         """Cycle through the three repeat modes and emit the signal."""
