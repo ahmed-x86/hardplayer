@@ -7,6 +7,8 @@ import mpv
 import json
 import subprocess
 import re
+import tempfile
+import time
 from pathlib import Path
 
 from PyQt6.QtWidgets import (QMainWindow, QStackedWidget, QWidget, QVBoxLayout, 
@@ -26,11 +28,61 @@ from ui_components import InfoDialog, StartupDialog
 from top_menu_convert import ConvertMenuManager
 from keyboard_shortcuts import KeyboardShortcutHandler
 from ui_components_continue import ResumeManager, ContinueDialog
+from yt_subtitles import SubtitleFetcher
 
 try:
     from gi.repository import GLib
 except ImportError:
     GLib = None # Modified here: We set the variable to None instead of ignoring it to avoid NameError
+
+# --- New: Background Thread to Download Subtitle File Locally ---
+class SubtitleDownloadThread(QThread):
+    downloaded = pyqtSignal(str, str) # مسار الملف، كود الترجمة
+    error = pyqtSignal(str)
+
+    def __init__(self, url, track_code):
+        super().__init__()
+        self.url = url
+        self.track_code = track_code
+
+    def run(self):
+        try:
+            is_auto = self.track_code.startswith("auto-")
+            lang = self.track_code.replace("auto-", "")
+            
+            temp_dir = os.path.join(tempfile.gettempdir(), "hardplayer_subs")
+            os.makedirs(temp_dir, exist_ok=True)
+            
+            unique_name = f"sub_{int(time.time())}_{lang}"
+            out_tmpl = os.path.join(temp_dir, f"{unique_name}.%(ext)s")
+            
+            cmd = ["yt-dlp", "--skip-download", "--no-warnings", "--quiet"]
+            
+            if is_auto:
+                cmd.extend(["--write-auto-subs", "--sub-langs", lang])
+            else:
+                cmd.extend(["--write-subs", "--sub-langs", lang])
+                
+            cmd.extend(["-o", out_tmpl, self.url])
+            subprocess.run(cmd, capture_output=True, text=True)
+            
+            # البحث عن الملف الذي تم تحميله
+            files = glob.glob(os.path.join(temp_dir, f"{unique_name}.*"))
+            valid_exts = ['.vtt', '.srt', '.ass', '.lrc', '.json3']
+            
+            target_file = None
+            for f in files:
+                if any(f.endswith(ext) for ext in valid_exts):
+                    target_file = f
+                    break
+            
+            if target_file:
+                self.downloaded.emit(target_file, self.track_code)
+            else:
+                self.error.emit(f"Could not download subtitle file for {self.track_code}")
+                
+        except Exception as e:
+            self.error.emit(str(e))
 
 # --- New: YouTube Playlist Fetcher Thread ---
 class YouTubePlaylistFetcher(QThread):
@@ -212,7 +264,16 @@ class HardPlayerWindow(QMainWindow):
             input_vo_keyboard=False, 
             keep_open=True,
             loglevel='info', 
-            log_handler=custom_mpv_logger
+            log_handler=custom_mpv_logger,
+            # ==========================================
+            # --- الإعدادات الجذرية الدائمة لمنع الجلتش ---
+            # ==========================================
+            cache='yes',
+            demuxer_max_bytes='150M',
+            demuxer_readahead_secs=20,
+            framedrop='vo',
+            video_sync='audio' # إجبار الصورة على اللحاق بالصوت دائماً لتجنب تكرار الفريمات
+            # ==========================================
         )
 
         # ==========================================
@@ -277,8 +338,10 @@ class HardPlayerWindow(QMainWindow):
         
         # Bind the new repeat
         self.controls.repeat_mode_changed.connect(self.handle_ui_repeat_change)
+        
         # Bind subtitles
         self.controls.subtitle_toggled.connect(self.toggle_subtitles)
+        self.controls.subtitles_btn.track_selected.connect(self.change_subtitle_track) # ربط اختيار اللغة
         
         # Bind video ended signal
         self.video_ended.connect(self.handle_video_ended)
@@ -419,13 +482,14 @@ class HardPlayerWindow(QMainWindow):
             else:
                 self.stop_playback()
 
-    # --- Addition: Safe subtitle toggle function (Safe Toggle) ---
+    # ==========================================
+    # --- Subtitle Logic ---
+    # ==========================================
     def toggle_subtitles(self):
         """Control showing or hiding subtitles and change the button state"""
         try:
             self._subtitles_enabled = not getattr(self, '_subtitles_enabled', False)
             
-            # Safely fetch the current text to prevent engine crash if it's not ready
             current_text = ""
             try:
                 current_text = getattr(self.player, 'sub_text', "")
@@ -458,8 +522,74 @@ class HardPlayerWindow(QMainWindow):
             else:
                 self.player['sub-visibility'] = True
         except Exception:
-            # Silent ignore to prevent any errors during video state changes (Core Dump prevention)
             pass
+
+    def change_subtitle_track(self, track_code):
+        """Changes the subtitle track based on the language code from the dynamic menu."""
+        try:
+            if track_code == "off":
+                self._subtitles_enabled = False
+                self.player['sub-visibility'] = False
+                self.player['sid'] = 'no' 
+                print("[*] 💬 Subtitles: OFF")
+                return
+
+            self._subtitles_enabled = True
+            self.player['sub-visibility'] = True
+            
+            clean_code = track_code.replace("auto-", "")
+            is_auto = track_code.startswith("auto-")
+            
+            # إذا كانت الترجمة أصلية ومحملة مسبقاً، نستخدمها مباشرة
+            if not is_auto and hasattr(self.player, 'track_list'):
+                for track in self.player.track_list:
+                    if track.get('type') == 'sub' and str(track.get('lang', '')).lower() == clean_code.lower():
+                        self.player['sid'] = track.get('id')
+                        print(f"[*] 💬 Native track activated: ID {track.get('id')}")
+                        return
+
+            # إذا كانت ترجمة تلقائية (أو غير موجودة)، نحملها محلياً لكسر مشكلة HTTP 403 Failed segment
+            print(f"[*] ⏳ Fetching subtitle '{track_code}' locally to bypass YouTube streaming restrictions...")
+            
+            current_url = getattr(self.player, 'path', None)
+            if current_url and ("youtube.com" in current_url or "youtu.be" in current_url):
+                # تشغيل الـ Thread لجلب الترجمة بهدوء
+                self.sub_dl_thread = SubtitleDownloadThread(current_url, track_code)
+                self.sub_dl_thread.downloaded.connect(self._on_subtitle_downloaded)
+                self.sub_dl_thread.start()
+            else:
+                self.player['slang'] = clean_code
+                self.player['sid'] = 'auto'
+
+        except Exception as e:
+            print(f"[*] ⚠️ Error changing subtitle track: {e}")
+
+    def _on_subtitle_downloaded(self, filepath, track_code):
+        """تُستدعى فور الانتهاء من تحميل ملف الترجمة محلياً وتمريره للمحرك"""
+        try:
+            self.player.command('sub-add', filepath)
+            print(f"[*] ✅ Subtitle loaded and activated successfully: {track_code}")
+        except Exception as e:
+            print(f"[*] ⚠️ Failed to add downloaded subtitle to MPV: {e}")
+
+    def _fetch_youtube_subtitles(self, url):
+        """Fetches YouTube subtitles in the background and populates the menu."""
+        if "youtube.com" in url or "youtu.be" in url:
+            try:
+                # 1. أعِد القائمة لحالة "جاري التحميل"
+                if hasattr(self.controls, 'subtitles_btn') and hasattr(self.controls.subtitles_btn, 'reset_loading_state'):
+                    self.controls.subtitles_btn.reset_loading_state()
+                
+                # 2. إنشاء الـ Thread وتخزينه في self لضمان عدم تدميره
+                self.sub_fetcher = SubtitleFetcher(url)
+                
+                # 3. ربط النتيجة بالزر لتحديث القائمة فور انتهاء الجلب
+                self.sub_fetcher.subtitles_fetched.connect(self.controls.subtitles_btn.update_tracks)
+                
+                # 4. بدء التشغيل في الخلفية
+                self.sub_fetcher.start()
+            except Exception as e:
+                print(f"[*] ⚠️ Subtitle fetcher initialization error: {e}")
 
     def seek_video(self, position):
         self.player.time_pos = position
@@ -468,12 +598,36 @@ class HardPlayerWindow(QMainWindow):
         if self.playlist:
             # Thanks to % len(), this function returns to the first video if we are at the last video
             self.current_index = (self.current_index + 1) % len(self.playlist)
-            self.player.play(self.playlist[self.current_index])
+            next_url = self.playlist[self.current_index]
+            
+            # Reset UI subtitles state for new video
+            self._subtitles_enabled = False
+            try:
+                self.controls.set_subtitle_status(False)
+            except Exception: pass
+            
+            if next_url.startswith("http"):
+                self.player['ytdl'] = True
+                self._fetch_youtube_subtitles(next_url)
+                
+            self.player.play(next_url)
 
     def play_previous(self):
         if self.playlist:
             self.current_index = (self.current_index - 1) % len(self.playlist)
-            self.player.play(self.playlist[self.current_index])
+            prev_url = self.playlist[self.current_index]
+            
+            # Reset UI subtitles state for new video
+            self._subtitles_enabled = False
+            try:
+                self.controls.set_subtitle_status(False)
+            except Exception: pass
+            
+            if prev_url.startswith("http"):
+                self.player['ytdl'] = True
+                self._fetch_youtube_subtitles(prev_url)
+                
+            self.player.play(prev_url)
 
     def scan_folder(self, current_file):
         try:
@@ -628,18 +782,20 @@ class HardPlayerWindow(QMainWindow):
         self.player['ytdl-raw-options'] = {
             "write-sub": "",
             "write-auto-sub": "",
-            "sub-langs": "ar,en,en-US,en-GB"
+            "sub-langs": "all" # Changed from 'ar,en' to 'all' so MPV handles ANY language clicked
         }
         self.player['slang'] = 'ar,en' 
         
+        # Reset state when playing a new video
+        self._subtitles_enabled = False
         try:
+            self.controls.set_subtitle_status(False)
             self.player['sub-visibility'] = False 
         except Exception:
             pass
             
-        # Reset state when playing a new video
-        self._subtitles_enabled = False
-        self.controls.set_subtitle_status(False)
+        # --- استدعاء الجلب في الخلفية (السر هنا) ---
+        self._fetch_youtube_subtitles(yt_url)
         # ==========================================
         
         if reset_playlist:
