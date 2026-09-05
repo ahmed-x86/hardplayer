@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 from PyQt6.QtCore import QThread, pyqtSignal
 from yt_url_parser import clean_youtube_url, clean_ansi
+from yt_subtitles import apply_subtitle_args
 
 class DownloadWorker(QThread):
     progress_signal = pyqtSignal(dict)
@@ -66,12 +67,7 @@ class DownloadWorker(QThread):
             "--no-warnings"
         ]
 
-        if self.dl_options.get('subs'):
-            cmd.extend(["--write-subs", "--write-auto-subs"])
-            lang = self.dl_options.get('sub_lang', 'en,ar')
-            if lang:
-                cmd.extend(["--sub-langs", lang])
-            cmd.extend(["--convert-subs", "srt", "--embed-subs"])
+        cmd = apply_subtitle_args(cmd, self.dl_options)
 
         if self.dl_options.get('thumb'):
             cmd.extend(["--write-thumbnail", "--convert-thumbnails", "jpg", "--embed-thumbnail"])
