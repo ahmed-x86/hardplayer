@@ -939,7 +939,7 @@ class YouTubeURLDialog(QDialog):
         if not selected_videos:
             self.next_btn.setEnabled(True)
             self.lbl.setText("Enter YouTube URL to Download:")
-                return
+            return
 
         
         self.lbl.setText("Getting quality options... ⏳")
